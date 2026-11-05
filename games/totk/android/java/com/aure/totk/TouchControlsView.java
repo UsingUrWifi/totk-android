@@ -8,6 +8,7 @@ import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.RectF;
 import android.util.SparseArray;
+import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
 
@@ -65,6 +66,8 @@ public final class TouchControlsView extends View {
     private float leftX, leftY, rightX, rightY, stickRadius, buttonRadius;
     private long currentButtons;
     private boolean stateSent;
+    private boolean drewOnce;
+    private boolean touchLogged;
     private int lx, ly, rx, ry;
 
     public TouchControlsView(TotkActivity activity) {
@@ -212,6 +215,10 @@ public final class TouchControlsView extends View {
     }
 
     @Override public boolean onTouchEvent(MotionEvent event) {
+        if (!touchLogged) {
+            touchLogged = true;
+            Log.i("TotkTouch", "First touch delivered to controller window");
+        }
         int action = event.getActionMasked(), index = event.getActionIndex();
         if (action == MotionEvent.ACTION_CANCEL) {
             resetInput();
@@ -318,6 +325,10 @@ public final class TouchControlsView extends View {
 
     @Override protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
+        if (!drewOnce) {
+            drewOnce = true;
+            Log.i("TotkTouch", "Touch view first rendered (" + getWidth() + "x" + getHeight() + ")");
+        }
         if (visible) {
             for (Button b : buttons) drawButton(canvas, b);
             drawStick(canvas, true);

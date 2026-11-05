@@ -8,8 +8,9 @@ import android.os.Bundle;
 import android.util.Log;
 import android.view.AttachedSurfaceControl;
 import android.view.View;
-import android.view.ViewGroup;
-import android.widget.FrameLayout;
+import android.view.Gravity;
+import android.view.WindowManager;
+import android.graphics.PixelFormat;
 import com.aure.totk.companion.AssetStore;
 import com.aure.totk.companion.CompanionNative;
 import com.aure.totk.companion.DisplayClass;
@@ -23,6 +24,7 @@ import java.nio.charset.StandardCharsets;
 public final class TotkActivity extends NativeActivity {
     private PresentationController companion;
     private TouchControlsView touchControls;
+    private boolean touchPanelAttached;
     /** Copies the saves to the player's save folder after each in-game save (null when no folder is set). */
     private SaveMirror.Watcher saves;
     private AttachedSurfaceControl presentRoot;
@@ -130,19 +132,6 @@ public final class TotkActivity extends NativeActivity {
         // Query only after super, before constructing a controller or display listener.
         // The companion art is generated on the device by the optional setup stage; without it the companion stays off.
         if (CompanionNative.isEnabled() && AssetStore.available(this)) companion = new PresentationController(this, new CompanionNative());
-        // Draw a controller above NativeActivity's game surface. No overlay permission needed.
-        // A failure must not prevent physical controllers or game startup.
-        try {
-            View decor = getWindow().getDecorView();
-            if (decor instanceof ViewGroup) {
-                touchControls = new TouchControlsView(this);
-                ((ViewGroup) decor).addView(touchControls, new FrameLayout.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
-                touchControls.bringToFront();
-            }
-        } catch (RuntimeException problem) {
-            Log.e("TotkTouch", "Unable to attach touch controller", problem);
-        }
         saves = SaveMirror.Watcher.start(this);
         int given = nativeFeedbackEnabled();   // what start_game gave the game (TOTK_RUMBLE / TOTK_GYRO and the hardware)
         if (given != 0 && !isFinishing()) feedback = new GameFeedback(this, given);
@@ -151,6 +140,69 @@ public final class TotkActivity extends NativeActivity {
             Updates.check(this, version -> { updateVersion = version; showUpdate(); });
         }
     }
+    /**
+     * The AHB Vulkan presenter is a SurfaceControl sibling attached to the window root,
+     * not a child of the normal Java view hierarchy. A decor child can therefore be
+     * completely obscured even though its view and JNI methods are correct. Create an
+     * app-owned transparent panel window, which WindowManager layers above this Activity.
+     * It is not TYPE_APPLICATION_OVERLAY and needs no draw-over-other-apps permission.
+     * FLAG_NOT_FOCUSABLE leaves gamepad/keyboard focus in NativeActivity.
+     */
+    private void showTouchPanel() {
+        if (touchPanelAttached || !resumed || !hasWindowFocus() || updateOpen || isFinishing()) return;
+        View decor = getWindow().getDecorView();
+        android.os.IBinder token = decor.getWindowToken();
+        if (token == null) {
+            Log.w("TotkTouch", "Panel attach deferred: activity window token missing");
+            return;
+        }
+        try {
+            if (touchControls == null) touchControls = new TouchControlsView(this);
+            WindowManager.LayoutParams lp = new WindowManager.LayoutParams(
+                    WindowManager.LayoutParams.MATCH_PARENT,
+                    WindowManager.LayoutParams.MATCH_PARENT,
+                    WindowManager.LayoutParams.TYPE_APPLICATION_PANEL,
+                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE |
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL |
+                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN |
+                    WindowManager.LayoutParams.FLAG_FULLSCREEN,
+                    PixelFormat.TRANSLUCENT);
+            lp.token = token;
+            lp.gravity = Gravity.TOP | Gravity.START;
+            lp.setTitle("TotK Touch Controller");
+            getWindowManager().addView(touchControls, lp);
+            touchPanelAttached = true;
+            Log.i("TotkTouch", "Controller panel attached above game surface (" +
+                    getResources().getDisplayMetrics().widthPixels + "x" +
+                    getResources().getDisplayMetrics().heightPixels + ")");
+        } catch (RuntimeException problem) {
+            Log.e("TotkTouch", "Controller panel attach failed", problem);
+            // A failed panel must never interrupt the game or leave partial windows.
+            if (touchControls != null && touchControls.getParent() != null) {
+                try { getWindowManager().removeViewImmediate(touchControls); }
+                catch (RuntimeException cleanup) { Log.w("TotkTouch", "Panel cleanup failed", cleanup); }
+            }
+            touchPanelAttached = false;
+        }
+    }
+
+    private void scheduleTouchPanel() {
+        getWindow().getDecorView().post(() -> showTouchPanel());
+    }
+
+    private void hideTouchPanel() {
+        if (touchControls != null) touchControls.resetInput();
+        if (touchPanelAttached && touchControls != null) {
+            try {
+                getWindowManager().removeViewImmediate(touchControls);
+                Log.i("TotkTouch", "Controller panel detached");
+            } catch (RuntimeException problem) {
+                Log.w("TotkTouch", "Controller panel detach failed", problem);
+            }
+            touchPanelAttached = false;
+        }
+    }
+
     private boolean settingsRequested;
     /** Reuse/reparent the singleTask game, never finish it: NativeActivity.onDestroy exits the game process. */
     private void ensureMainDisplay() {
@@ -179,13 +231,17 @@ public final class TotkActivity extends NativeActivity {
     @Override public void onConfigurationChanged(Configuration config) {
         super.onConfigurationChanged(config);
         // Moving a task with the menu on top must not bring its background game back over the menu.
-        if (resumed) ensureMainDisplay();
+        if (resumed) {
+            ensureMainDisplay();
+            hideTouchPanel();
+            scheduleTouchPanel();
+        }
         if (companion != null && getDisplay() != null) companion.onDisplayChanged(getDisplay().getDisplayId());
     }
     @Override protected void onResume() {
         super.onResume();
         resumed = true;
-        if (touchControls != null) touchControls.resetInput();
+        scheduleTouchPanel();
         ensureMainDisplay();
         GameFeedback f = feedback;
         if (f != null) f.resume();
@@ -194,12 +250,14 @@ public final class TotkActivity extends NativeActivity {
     @Override public void onTopResumedActivityChanged(boolean top) {
         super.onTopResumedActivityChanged(top);
         nativeGameInputFocus(top); // a release routed to another display must not leave a controller button held
-        if (!top && touchControls != null) touchControls.resetInput();
+        if (!top) hideTouchPanel();
+        else scheduleTouchPanel();
         if (companion != null) companion.ownerTopResumed(top);
     }
     @Override public void onWindowFocusChanged(boolean focused) {
         super.onWindowFocusChanged(focused);
-        if (!focused && touchControls != null) touchControls.resetInput();
+        if (focused) scheduleTouchPanel();
+        else hideTouchPanel();
         // Quickstep can leave the live recents tile RESUMED. On one display,
         // focus loss must pause too, and focus return need not call onResume.
         // Never apply that policy to multi-resume on a second display.
@@ -212,7 +270,7 @@ public final class TotkActivity extends NativeActivity {
         }
     }
     @Override protected void onPause() {
-        if (touchControls != null) touchControls.resetInput();
+        hideTouchPanel();
         resumed = false;
         GameFeedback f = feedback;
         if (f != null) f.pause();   // no motion in the background, and no motor left running
@@ -224,12 +282,8 @@ public final class TotkActivity extends NativeActivity {
         super.onStop();
     }
     @Override protected void onDestroy() {
-        if (touchControls != null) {
-            touchControls.resetInput();
-            ViewGroup parent = (ViewGroup) touchControls.getParent();
-            if (parent != null) parent.removeView(touchControls);
-            touchControls = null;
-        }
+        hideTouchPanel();
+        touchControls = null;
         updatePresentPrerotate(0);
         if (companion != null) { companion.close(); companion = null; }
         if (saves != null) { saves.close(1500); saves = null; }
