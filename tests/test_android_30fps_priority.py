@@ -37,20 +37,23 @@ class Priority30Tests(unittest.TestCase):
     def mapping(self, line):
         return dict(pair.split('=',1) for pair in line.split() if '=' in pair)
 
-    def test_priority_turns_on_real30_and_reduces_work(self):
+    def test_priority_targets_real30_with_visual_integrity(self):
         d=self.mapping(self.probe('set priority30=on')[0])
         for key,want in {'priority30':'on','frame_rate':'30','frame_gen':'off',
                          'render_res':'960x540','latency':'balanced','upscaler':'off',
-                         'aa':'off','shadows':'low','refresh_hint':'60',
+                         'aa':'fxaa','shadows':'high','shadow_passes':'4',
+                         'far_clamp':'auto','refresh_hint':'60',
                          'stutter_trace':'off','pcache_stats':'off'}.items():
             self.assertEqual(d[key],want,key)
         self.assertEqual(d['perf_hints'],'legacy')
         env=self.probe('env en-US priority30=on')[0]
         for value in ['TOTK_FPS60=0','TOTK_FRAME_RATE_HINT=60','TOTK_RENDER_RES=960x540',
-                      'TOTK_SHADOW_RES=256','TOTK_FXAA=0','TOTK_POST_SCALE=off','TOTK_ACQUIRE_SLACK=1']:
+                      'TOTK_POST_SCALE=off','TOTK_ACQUIRE_SLACK=1']:
             self.assertIn(value+'|',env)
         self.assertNotIn('TOTK_FRAMEGEN=locked',env)
         self.assertNotIn('TOTK_ADPF=full',env)
+        for forbidden in ('TOTK_SHADOW_RES=', 'TOTK_SHADOW_CASCADES=', 'TOTK_FXAA=0', 'TOTK_FAR_CLAMP='):
+            self.assertNotIn(forbidden, env)
 
     def test_optin_is_not_an_unannounced_device_default(self):
         state=self.mapping(self.probe('stored', 'first SM8550')[0])

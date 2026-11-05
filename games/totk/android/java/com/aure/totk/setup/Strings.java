@@ -157,7 +157,7 @@ final class Strings {
             case "render_res": return "Size of the 3D scene before upscaling";
             case "latency": return "Responsive · Balanced · Smoothest";
             case "perf_hints": return "Current or experimental all-thread Android performance hints";
-            case "priority30": return "Prioritize 30 real FPS · lower GPU workload";
+            case "priority30": return "30 FPS target · original shadows and scenery";
             case "upscaler": return "Off · FSR 1 · Snapdragon GSR";
             case "sharpness_fsr": case "sharpness_sgsr": return "Applies to the upscaler";
             case "aa": return "Smooths jagged edges";
@@ -193,12 +193,13 @@ final class Strings {
             case "perf_hints": return "Current keeps the existing single render-thread Android performance session. Experimental full "
                     + "adds critical native game, renderer, and pipeline threads to an Android performance hint session when the device supports it. "
                     + "May help or hurt. Change one setting at a time and compare matched scenes.";
-            case "priority30": return "Opt-in real-30 performance priority. Applies 540p scene rendering, low shadows, "
-                    + "no frame generation, no post upscaler, FXAA off, two directional shadow cascades, balanced input latency and a 60 Hz refresh request. "
-                    + "Turns off costly stutter/pipeline tracing for ordinary play; keeps CPU hints unchanged. "
-                    + "Does not modify shaders, driver or GPU synchronization. "
-                    + "The aim is fewer drops below 30, not a guarantee. Manually changing a related setting releases this profile. "
-                    + "Switching it off leaves the selected quality settings in place; choose another preset to restore them.";
+            case "priority30": return "Visual-correctness-first real-30 target: 540p scene resolution with the game's "
+                    + "original four shadow cascades, original shadow-map sizing, and FXAA enabled. The full original "
+                    + "draw distance is restored even if a previous session used a camera cap. "
+                    + "No frame generation or extra post upscale; keeps balanced input latency, 60 Hz preference, and "
+                    + "your CPU hint choice. Experimental reduced shadows and distance remain manual Picture options. "
+                    + "This removes known visual compromises, not all possible Turnip/translation flicker. "
+                    + "It does not guarantee 30 fps. Changing an associated setting releases this profile.";
             case "upscaler": return "How the picture is enlarged to the screen. FSR 1 is AMD's edge-aware upscaler; Snapdragon GSR is "
                     + "Qualcomm's, made for Adreno GPUs. Off uses plain filtering.";
             case "sharpness_fsr": case "sharpness_sgsr": return "How much detail the upscaler restores after enlarging the picture. Too high "

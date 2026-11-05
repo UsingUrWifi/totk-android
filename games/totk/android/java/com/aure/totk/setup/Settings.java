@@ -107,20 +107,24 @@ final class Settings {
 
     /** Set one option, then apply the rules that tie options together: 60 fps turns frame generation off, frame
      * generation needs 30 fps. Invalid values are ignored. */
-    /** Explicit real-30 throughput priority, not a claim about minimum FPS.
-     * Uses already-qualified settings/env controls, never changes the Vulkan scheduler. */
+    /** Visual-correctness-first real-30 priority, not a minimum-FPS claim.
+     * Retains game shadow, camera and FXAA behaviour; only the scene resolution
+     * is lowered. No Vulkan synchronization or driver change is implied. */
     private void applyPriority30() {
         values.put("frame_rate", "30");
         values.put("frame_gen", "off");
         values.put("render_res", "960x540");
         values.put("latency", "balanced");
         values.put("upscaler", "off");
-        values.put("aa", "off");
-        values.put("shadows", "low");
-        // Unlike resolution-only shadow reductions, two directional cascades
-        // can reduce CPU-side caster draws. 1.4.3-only guarded guest patch.
-        values.put("shadow_passes", "2");
-        // Do not automatically truncate the open-world horizon.
+        // Original shadow cascade coverage, native map sizes and game FXAA:
+        // two cascades/256px maps/disabled AA can shimmer or lose shadows.
+        // The 30 FPS optimization here is reduced scene pixels, not shadow loss.
+        values.put("aa", "fxaa");
+        values.put("shadows", "high");
+        values.put("shadow_passes", "4");
+        // Clear a stale experimental camera cap from an older saved profile.
+        // Horizon, streaming and draw distance are not reduced automatically.
+        values.put("far_clamp", "auto");
         values.put("refresh_hint", "60");
         values.put("stutter_trace", "off");
         values.put("pcache_stats", "off");
@@ -133,7 +137,7 @@ final class Settings {
         switch (key) {
             case "frame_rate": case "frame_gen": case "render_res": case "latency":
             case "upscaler": case "aa": case "shadows": case "shadow_passes":
-            case "refresh_hint": return true;
+            case "far_clamp": case "refresh_hint": return true;
             default: return false;
         }
     }

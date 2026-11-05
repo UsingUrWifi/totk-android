@@ -41,19 +41,19 @@ class Fold5DrawBudgetTests(unittest.TestCase):
     def env(self,line):
         return [part for part in line.split('|') if part and not part.startswith('#')]
 
-    def test_priority30_reduces_actual_shadow_draw_passes(self):
+    def test_priority30_preserves_original_shadow_coverage(self):
         state=self.state(self.run_probe('set priority30=on')[0])
         self.assertEqual(state['priority30'],'on')
-        self.assertEqual(state['shadow_passes'],'2')
+        self.assertEqual(state['shadow_passes'],'4')
         self.assertEqual(state['far_clamp'],'auto')
+        self.assertEqual(state['shadows'],'high')
+        self.assertEqual(state['aa'],'fxaa')
         self.assertEqual(state['frame_gen'],'off')
         self.assertEqual(state['frame_rate'],'30')
         lines=self.env(self.run_probe('env en-US priority30=on')[0])
-        self.assertIn('TOTK_SHADOW_CASCADES=2',lines)
-        self.assertNotIn('TOTK_FAR_CLAMP=500',lines)
-        self.assertFalse(any(x.startswith('TOTK_FAR_CLAMP=') for x in lines))
+        self.assertFalse(any(x.startswith(('TOTK_SHADOW_CASCADES=', 'TOTK_SHADOW_RES=',
+                                                  'TOTK_FAR_CLAMP=', 'TOTK_FXAA=')) for x in lines))
         self.assertIn('TOTK_FRAME_RATE_HINT=60',lines)
-        self.assertIn('TOTK_SHADOW_RES=256',lines)
 
     def test_shipping_default_and_preset_leave_cascades_unchanged(self):
         state=self.state(self.run_probe('stored')[0])
@@ -81,10 +81,11 @@ class Fold5DrawBudgetTests(unittest.TestCase):
             lines=self.env(self.run_probe(f'env en-US far_clamp={metres}')[0])
             self.assertIn('TOTK_FAR_CLAMP='+metres,lines)
         state=self.state(self.run_probe('set priority30=on far_clamp=500')[0])
-        self.assertEqual(state['priority30'],'on')  # Independent experimental control
-        self.assertEqual(state['shadow_passes'],'2')
+        self.assertEqual(state['priority30'],'off')  # Explicit camera override exits visual-safe profile.
+        self.assertEqual(state['shadow_passes'],'4')
         self.assertEqual(state['far_clamp'],'500')
-        self.assertIn('TOTK_FAR_CLAMP=500',self.env(self.run_probe('env en-US priority30=on far_clamp=500')[0]))
+        # Stored priority30=on normalizes stale camera caps at startup.
+        self.assertNotIn('TOTK_FAR_CLAMP=500',self.env(self.run_probe('env en-US priority30=on far_clamp=500')[0]))
 
     def test_version_guarded_patch_and_no_fence_modifications(self):
         runtime=PATCH.read_text()

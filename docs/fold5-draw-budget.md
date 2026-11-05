@@ -1,5 +1,13 @@
 # Fold 5 native shadow draw-work A/B — November 5, 2026
 
+> **Visual integrity correction (November 5, 2026):** The subsequently observed
+> foliage/shadow flicker and horizon clipping mean the automatic two-cascade
+> reduction is no longer part of 30 FPS priority. The profile now retains four
+> cascades, original shadow-map resolution, FXAA and game draw distance.
+> The manual 3/2-cascade and 1000/500/200 m controls remain experimental.
+> This document below records the earlier A/B protocol; see
+> `docs/fold5-visual-integrity.md` for the current recommendation.
+
 Target: `UsingUrWifi/totk-android`, `touch-controls` after `c9430479`.
 
 The previous 30 FPS priority profile lowered *shadow-map pixel dimensions*, which does not reduce the number of shadow-caster draws. Version 1.4.3 already contains the original guarded `TOTK_SHADOW_CASCADES` patch. The new **Graphics > Picture > Directional shadow passes** setting exposes 4 (original, unset), 3 and 2. **30 FPS priority** now selects 2; disabling it manually leaves the chosen settings in place, while selecting an ordinary preset or resetting Performance restores original 4 if priority had been active. Two passes may cause distant-shadow/transition artifacts. No game files are bundled or edited permanently.
