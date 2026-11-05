@@ -1261,13 +1261,33 @@ public final class SetupActivity extends Activity implements SetupService.Listen
         Widgets.Panel list = panel(80, listTop, 1040, 906 - listTop, false, 28, 28);
         List<String> keys = new ArrayList<>();
         switch (tab) {
-            case Settings.PERFORMANCE: keys.addAll(Arrays.asList("frame_rate", "frame_gen", "render_res", "latency", "perf_hints")); break;
+            case Settings.PERFORMANCE: keys.addAll(Arrays.asList("frame_rate", "frame_gen", "render_res", "latency", "perf_hints", "priority30")); break;
             case Settings.PICTURE: keys.addAll(Arrays.asList("upscaler", "sharpness", "aa", "shadows")); break;
             default:
                 keys.addAll(Arrays.asList("console_mode", "native_hud", "refresh_hint", "overlay", "overlay_pos"));
                 if (SettingsStore.secondaryDisplay(this)) keys.add("second_screen");
         }
-        for (String key : keys) settingRow(list, key);
+        if (tab.equals(Settings.PERFORMANCE)) {
+            // The fixed 550-pixel Performance panel cannot hold six 92+18 rows.
+            // Use 6*(70+8)=468 within its 494-pixel inner height, with scrolling
+            // as a fallback for accessibility text sizes and later settings.
+            ScrollView scroll = new ScrollView(this);
+            scroll.setFillViewport(true);
+            scroll.setOverScrollMode(View.OVER_SCROLL_IF_CONTENT_SCROLLS);
+            LinearLayout rows = Widgets.column(this);
+            scroll.addView(rows);
+            list.addView(scroll, new LinearLayout.LayoutParams(-1, -1));
+            for (String key : keys) {
+                settingRow(rows, key);
+                Widgets.Row row = settingRows.get(key);
+                LinearLayout.LayoutParams lp = (LinearLayout.LayoutParams) row.getLayoutParams();
+                lp.height = Theme.u(70);
+                lp.bottomMargin = Theme.u(8);
+                row.setLayoutParams(lp);
+            }
+        } else {
+            for (String key : keys) settingRow(list, key);
+        }
         detailPanel();
         if (setupFinished) {
             // Setup's last step: the recommended preset is selected; one press on Start game plays.

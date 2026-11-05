@@ -127,6 +127,7 @@ final class Strings {
             case "render_res": return "Render resolution";
             case "latency": return "Latency";
             case "perf_hints": return "CPU performance hints";
+            case "priority30": return "30 FPS priority";
             case "upscaler": return "Upscaler";
             case "sharpness_fsr": case "sharpness_sgsr": return "Sharpness";
             case "aa": return "Anti-aliasing";
@@ -154,6 +155,7 @@ final class Strings {
             case "render_res": return "Size of the 3D scene before upscaling";
             case "latency": return "Responsive · Balanced · Smoothest";
             case "perf_hints": return "Current or experimental all-thread Android performance hints";
+            case "priority30": return "Prioritize 30 real FPS · lower GPU workload";
             case "upscaler": return "Off · FSR 1 · Snapdragon GSR";
             case "sharpness_fsr": case "sharpness_sgsr": return "Applies to the upscaler";
             case "aa": return "Smooths jagged edges";
@@ -187,6 +189,12 @@ final class Strings {
             case "perf_hints": return "Current keeps the existing single render-thread Android performance session. Experimental full "
                     + "adds critical native game, renderer, and pipeline threads to an Android performance hint session when the device supports it. "
                     + "May help or hurt. Change one setting at a time and compare matched scenes.";
+            case "priority30": return "Opt-in real-30 performance priority. Applies 540p scene rendering, low shadows, "
+                    + "no frame generation, no post upscaler, FXAA off, balanced input latency and a 60 Hz refresh request. "
+                    + "Turns off costly stutter/pipeline tracing for ordinary play; keeps CPU hints unchanged. "
+                    + "Does not modify shaders, driver or GPU synchronization. "
+                    + "The aim is fewer drops below 30, not a guarantee. Manually changing a related setting releases this profile. "
+                    + "Switching it off leaves the selected quality settings in place; choose another preset to restore them.";
             case "upscaler": return "How the picture is enlarged to the screen. FSR 1 is AMD's edge-aware upscaler; Snapdragon GSR is "
                     + "Qualcomm's, made for Adreno GPUs. Off uses plain filtering.";
             case "sharpness_fsr": case "sharpness_sgsr": return "How much detail the upscaler restores after enlarging the picture. Too high "
@@ -231,6 +239,7 @@ final class Strings {
             case "frame_rate": return value + " fps";
             case "refresh_hint": return value.equals("60") ? "Prefer 60 Hz" : "System auto";
             case "perf_hints": return value.equals("full") ? "Full (test)" : "Current";
+            case "priority30": return value.equals("on") ? "On" : "Off";
             case "pcache_stats": case "stutter_trace": return value.equals("on") ? "On" : "Off";
             case "frame_gen": return value.equals("on") ? "Interpolation" : "Off";
             case "render_res": return value.equals("game") ? "Game default" : value.replace("x", " × ");

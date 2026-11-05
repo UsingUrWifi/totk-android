@@ -7,6 +7,9 @@ on:
     paths:
       - 'games/totk/android/java/com/aure/totk/TouchControlsView.java'
       - 'games/totk/android/java/com/aure/totk/TotkActivity.java'
+      - 'games/totk/android/java/com/aure/totk/setup/SetupActivity.java'
+      - 'games/totk/android/java/com/aure/totk/setup/Settings.java'
+      - 'games/totk/android/java/com/aure/totk/setup/Strings.java'
       - 'games/totk/runtime/frontend_android.c'
       - 'games/totk/runtime/companion_jni.c'
       - '.github/workflows/build-totk-touch.yml'

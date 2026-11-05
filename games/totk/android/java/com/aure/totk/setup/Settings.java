@@ -38,6 +38,7 @@ final class Settings {
         new Option("render_res", PERFORMANCE, "game", "game", "1280x720", "1152x648", "960x540"),
         new Option("latency", PERFORMANCE, "balanced", "responsive", "balanced", "smoothest"),
         new Option("perf_hints", PERFORMANCE, "legacy", "legacy", "full"),
+        new Option("priority30", PERFORMANCE, "off", "off", "on"),
         new Option("upscaler", PICTURE, "off", "off", "fsr", "sgsr"),
         new Option("sharpness_fsr", PICTURE, "20"),
         new Option("sharpness_sgsr", PICTURE, "50"),
@@ -85,6 +86,7 @@ final class Settings {
         }
         // A hand-edited store must not hold a combination the menu cannot produce.
         if ("on".equals(get("frame_gen"))) values.put("frame_rate", "30");
+        if ("on".equals(get("priority30"))) applyPriority30();
     }
     /** The first launch: shipping defaults with the profile for this chip (profile(soc)). */
     static Settings firstRun(String soc) {
@@ -103,10 +105,38 @@ final class Settings {
 
     /** Set one option, then apply the rules that tie options together: 60 fps turns frame generation off, frame
      * generation needs 30 fps. Invalid values are ignored. */
+    /** Explicit real-30 throughput priority, not a claim about minimum FPS.
+     * Uses already-qualified settings/env controls, never changes the Vulkan scheduler. */
+    private void applyPriority30() {
+        values.put("frame_rate", "30");
+        values.put("frame_gen", "off");
+        values.put("render_res", "960x540");
+        values.put("latency", "balanced");
+        values.put("upscaler", "off");
+        values.put("aa", "off");
+        values.put("shadows", "low");
+        values.put("refresh_hint", "60");
+        values.put("stutter_trace", "off");
+        values.put("pcache_stats", "off");
+        // No per-frame diagnostic tracing during normal gameplay; reenable only for an audit.
+        // Preserve the user's CPU-hints choice; switching to Full is a separate A/B test.
+    }
+    /** Manual performance changes leave the chosen values in place but relinquish the
+     * priority label. This avoids an invisible governor overriding later player changes. */
+    private static boolean priority30Controls(String key) {
+        switch (key) {
+            case "frame_rate": case "frame_gen": case "render_res": case "latency":
+            case "upscaler": case "aa": case "shadows": case "refresh_hint": return true;
+            default: return false;
+        }
+    }
     void set(String key, String value) {
         Option option = option(key);
         if (!option.valid(value)) return;
+        if ("on".equals(values.get("priority30")) && priority30Controls(key) &&
+                !value.equals(values.get(key))) values.put("priority30", "off");
         values.put(key, value);
+        if (key.equals("priority30") && value.equals("on")) { applyPriority30(); return; }
         if (key.equals("frame_rate") && value.equals("60")) values.put("frame_gen", "off");
         if (key.equals("frame_gen") && value.equals("on")) values.put("frame_rate", "30");
     }
@@ -144,6 +174,7 @@ final class Settings {
     void applyPreset(String name) {
         int preset = Arrays.asList(PRESETS).indexOf(name);
         if (preset < 0) return;
+        values.put("priority30", "off"); // Explicit preset selection leaves priority mode.
         for (int k = 0; k < PRESET_KEYS.length; k++) if (PRESET_VALUES[preset][k] != null) values.put(PRESET_KEYS[k], PRESET_VALUES[preset][k]);
     }
     /** One preset value (for the card captions), or null when the preset leaves it alone. */
@@ -184,6 +215,7 @@ final class Settings {
     static boolean profileKnown(String soc) { return socClass(soc) != null; }
     /** Y on a tab: the device's default values for that tab (the profile's preset for Performance and Picture). */
     void defaults(String tab, String soc) {
+        if (tab.equals(PERFORMANCE) || tab.equals(PICTURE)) values.put("priority30", "off");
         for (Option option : OPTIONS) if (option.tab.equals(tab)) values.put(option.key, option.fallback);
         if (tab.equals(PERFORMANCE) || tab.equals(PICTURE)) {
             int p = Arrays.asList(PRESETS).indexOf(profile(soc));
