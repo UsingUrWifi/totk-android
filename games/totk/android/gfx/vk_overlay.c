@@ -377,7 +377,7 @@ static _Atomic uint64_t handoffs[256], target_ns, resolution_sample, framegen_sa
 /* IEEE-754 -1.0, not zero: no snapshot may invent a measured GPU sample before publication. */
 static _Atomic uint64_t gpu_sample[3] = {UINT64_C(0xbff0000000000000), UINT64_C(0xbff0000000000000), UINT64_C(0xbff0000000000000)};
 static _Atomic uint64_t compile_at[256], compile_cost[256];
-static _Atomic unsigned handoff_count, scale_sample[2], model_performance, gpu_paired, compile_count;
+static _Atomic unsigned handoff_count, real_handoff_count, scale_sample[2], model_performance, gpu_paired, compile_count;
 static _Atomic unsigned power_sample;
 static _Atomic int temperature_sample = INT_MIN;
 static vk_overlay_panel history = {.power_mw = -1, .temperature_mc = INT_MIN, .gpu_real_ms = -1, .gpu_incremental_ms = -1, .gpu_budget_ms = -1};
@@ -525,10 +525,15 @@ void vk_overlay_target(double period_s) {
     if (!available || !isfinite(period_s) || period_s <= 0 || period_s > 1) return;
     atomic_store_explicit(&target_ns, (uint64_t)(period_s * 1e9), memory_order_relaxed);
 }
+void vk_overlay_handoff_totals(uint32_t *total, uint32_t *real) {
+    if (total) *total = atomic_load_explicit(&handoff_count, memory_order_relaxed);
+    if (real) *real = atomic_load_explicit(&real_handoff_count, memory_order_relaxed);
+}
 void vk_overlay_presented(uint64_t now_ns, int generated) {
     if (!available) return;
     unsigned n = atomic_load_explicit(&handoff_count, memory_order_relaxed);
     atomic_store_explicit(&handoffs[n % 256], (now_ns & ~UINT64_C(1)) | (generated != 0), memory_order_relaxed);
+    if (!generated) atomic_fetch_add_explicit(&real_handoff_count, 1, memory_order_relaxed);
     atomic_store_explicit(&handoff_count, n + 1, memory_order_relaxed);
 }
 typedef struct {

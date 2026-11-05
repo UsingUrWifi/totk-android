@@ -30,6 +30,15 @@ public final class TouchControlsView extends View {
     private static final String KEY_ALPHA = "opacity";
     private static final String KEY_STYLE = "style";
     private static final String KEY_HAPTICS = "haptics";
+    private static final String KEY_ZL_TOGGLE = "zl_toggle";
+    private static final String KEY_COMBO_ENABLED = "combo_enabled";
+    private static final String KEY_COMBO_FIRST = "combo_first";
+    private static final String KEY_COMBO_SECOND = "combo_second";
+    private static final String KEY_DIAGNOSTICS = "idle_diagnostics";
+    // Labels are in Switch bit order, exactly matching runtime/frontend_android.c.
+    private static final String[] ACTION_LABELS = {
+            "A", "B", "X", "Y", "L3", "R3", "L", "R", "ZL", "ZR", "+", "−", "◀", "▲", "▶", "▼"
+    };
     private static final String STYLE_PRO = "pro";
     private static final String STYLE_OUTLINE = "outline";
     private static final Typeface CONTROL_FONT = Typeface.create("sans-serif-medium", Typeface.NORMAL);
@@ -39,7 +48,7 @@ public final class TouchControlsView extends View {
     private static final int L3 = 4, R3 = 5, L = 6, R = 7;
     private static final int ZL = 8, ZR = 9, PLUS = 10, MINUS = 11;
     private static final int LEFT = 12, UP = 13, RIGHT = 14, DOWN = 15;
-    private static final int MODE_BUTTON = 0, MODE_LEFT_STICK = 1, MODE_RIGHT_STICK = 2, MODE_MENU = 3;
+    private static final int MODE_BUTTON = 0, MODE_LEFT_STICK = 1, MODE_RIGHT_STICK = 2, MODE_MENU = 3, MODE_MACRO = 4;
 
     private static final class Button {
         final String text;
@@ -68,6 +77,10 @@ public final class TouchControlsView extends View {
             new Button("◀", LEFT), new Button("▲", UP), new Button("▶", RIGHT), new Button("▼", DOWN)
     };
     private final RectF menu = new RectF();
+    private final TouchBindings bindings = new TouchBindings();
+    private final TouchPerfDiagnostics diagnostics;
+    private boolean comboEnabled;
+    private float comboX, comboY, comboRadius;
     private boolean visible;
     private boolean proStyle;
     private boolean haptics;
@@ -88,6 +101,14 @@ public final class TouchControlsView extends View {
         visible = prefs.getBoolean(KEY_VISIBLE, true);
         proStyle = !STYLE_OUTLINE.equals(prefs.getString(KEY_STYLE, STYLE_PRO));
         haptics = prefs.getBoolean(KEY_HAPTICS, true);
+        bindings.setToggleZl(prefs.getBoolean(KEY_ZL_TOGGLE, false));
+        int first = TouchBindings.safeBit(prefs.getInt(KEY_COMBO_FIRST, ZL), ZL);
+        int second = TouchBindings.safeBit(prefs.getInt(KEY_COMBO_SECOND, A), A);
+        if (first == second) second = first == A ? ZL : A;
+        bindings.setCombo(first, second);
+        comboEnabled = prefs.getBoolean(KEY_COMBO_ENABLED, false);
+        diagnostics = new TouchPerfDiagnostics(activity, this::invalidate, () -> pointers.size() != 0);
+        diagnostics.setEnabled(prefs.getBoolean(KEY_DIAGNOSTICS, false));
         scale = clamp(prefs.getFloat(KEY_SCALE, 1f), .75f, 1.35f);
         opacity = clamp(prefs.getFloat(KEY_ALPHA, .46f), .20f, .85f);
         setClickable(true);
@@ -140,6 +161,8 @@ public final class TouchControlsView extends View {
 
         leftX = w * .25f; leftY = h * .81f;
         rightX = w * .75f; rightY = h * .81f;
+        // Optional shortcut does not move existing controls, and is away from stick centers.
+        comboX = w * .63f; comboY = h * .59f; comboRadius = buttonRadius * .80f;
         float menuWidth = Math.max(dp(66), w * .072f);
         float menuHeight = dp(36);
         menu.set(w / 2f - menuWidth / 2f, dp(7), w / 2f + menuWidth / 2f, dp(7) + menuHeight);
@@ -153,6 +176,11 @@ public final class TouchControlsView extends View {
 
     private static boolean shoulder(Button b) {
         return b.bit == L || b.bit == R || b.bit == ZL || b.bit == ZR;
+    }
+
+    private boolean comboHit(float x, float y) {
+        return comboEnabled && Math.abs(x - comboX) <= comboRadius * 1.42f &&
+                Math.abs(y - comboY) <= comboRadius * .94f;
     }
 
     private Button hit(float x, float y) {
@@ -183,6 +211,7 @@ public final class TouchControlsView extends View {
 
     public void resetInput() {
         pointers.clear();
+        bindings.reset(); // never leave ZL latched across focus/rotation/settings
         pendingStickPulse = false;
         send(0, 0, 0, 0, 0);
         invalidate();
@@ -190,12 +219,15 @@ public final class TouchControlsView extends View {
 
     private void updateNative() {
         long bits = 0;
+        boolean macroHeld = false;
         int nextLX = 0, nextLY = 0, nextRX = 0, nextRY = 0;
         for (int i = 0; i < pointers.size(); i++) {
             Finger p = pointers.valueAt(i);
             if (p.mode == MODE_BUTTON) {
                 Button b = hit(p.x, p.y);
                 if (b != null) bits |= 1L << b.bit;
+            } else if (p.mode == MODE_MACRO) {
+                macroHeld = true;
             } else if (p.mode == MODE_LEFT_STICK || p.mode == MODE_RIGHT_STICK) {
                 float dx = p.x - p.originX, dy = p.y - p.originY;
                 float length = (float)Math.hypot(dx, dy);
@@ -208,14 +240,15 @@ public final class TouchControlsView extends View {
                 }
             }
         }
-        long acceptedButtons = visible ? bits : 0;
+        long acceptedButtons = visible ? bindings.apply(bits, macroHeld) : 0;
         long newPresses = acceptedButtons & ~currentButtons;
         boolean stickStarted = visible && pendingStickPulse;
         pendingStickPulse = false;
         // Native state always updates before feedback, avoiding input latency.
         send(acceptedButtons, visible ? nextLX : 0, visible ? nextLY : 0,
                 visible ? nextRX : 0, visible ? nextRY : 0);
-        if (newPresses != 0) pulse(HapticFeedbackConstants.VIRTUAL_KEY);
+        // A second ZL tap releases a latch; still acknowledge that intentional input.
+        if (newPresses != 0 || bindings.toggledOnThisPress()) pulse(HapticFeedbackConstants.VIRTUAL_KEY);
         else if (stickStarted) pulse(HapticFeedbackConstants.CLOCK_TICK);
         invalidate();
     }
@@ -236,6 +269,10 @@ public final class TouchControlsView extends View {
             return;
         }
         if (!visible) return;
+        if (comboHit(x, y)) {
+            pointers.put(id, new Finger(MODE_MACRO, x, y));
+            return;
+        }
         if (hit(x, y) != null) {
             pointers.put(id, new Finger(MODE_BUTTON, x, y));
             return;
@@ -254,6 +291,7 @@ public final class TouchControlsView extends View {
             Log.i("TotkTouch", "First touch delivered to controller window");
         }
         int action = event.getActionMasked(), index = event.getActionIndex();
+        diagnostics.markTouch(); // sampling is independent of actual Switch button edges
         if (action == MotionEvent.ACTION_CANCEL) {
             resetInput();
             return true;
@@ -279,20 +317,39 @@ public final class TouchControlsView extends View {
         return true;
     }
 
+    @Override protected void onAttachedToWindow() {
+        super.onAttachedToWindow();
+        diagnostics.onAttached();
+    }
+    @Override protected void onDetachedFromWindow() {
+        diagnostics.onDetached();
+        resetInput();
+        super.onDetachedFromWindow();
+    }
+
     private void showSettings() {
         resetInput();
+        String[] overlayNames = {"Off", "FPS", "Full"};
+        int overlayMode = TotkActivity.nativeOverlayMode();
         String[] items = {
                 visible ? "Hide controls" : "Show controls",
                 "Control size: " + Math.round(scale * 100f) + "%",
                 "Opacity: " + Math.round(opacity * 100f) + "%",
                 "Controller style: " + (proStyle ? "Pro Controller" : "Minimal outline"),
                 "Touch vibration: " + (haptics ? "On" : "Off"),
-                "Reset layout"
+                "ZL behavior: " + (bindings.toggleZl() ? "Toggle" : "Hold"),
+                "M1 shortcut: " + (comboEnabled ? comboName() : "Off"),
+                "Idle performance monitor: " + (diagnostics.enabled() ? "On" : "Off"),
+                "Native FPS overlay: " + overlayNames[Math.max(0, Math.min(2, overlayMode))],
+                "Share performance log",
+                "Clear performance log",
+                "Reset controller settings"
         };
         new AlertDialog.Builder(activity).setTitle("Touch controller")
                 .setItems(items, (dialog, which) -> {
                     if (which == 0) {
                         visible = !visible;
+                        resetInput();
                         prefs.edit().putBoolean(KEY_VISIBLE, visible).apply();
                     } else if (which == 1) {
                         float[] sizes = { .75f, 1f, 1.15f, 1.35f };
@@ -319,15 +376,74 @@ public final class TouchControlsView extends View {
                     } else if (which == 4) {
                         haptics = !haptics;
                         prefs.edit().putBoolean(KEY_HAPTICS, haptics).apply();
+                    } else if (which == 5) {
+                        bindings.setToggleZl(!bindings.toggleZl());
+                        resetInput();
+                        prefs.edit().putBoolean(KEY_ZL_TOGGLE, bindings.toggleZl()).apply();
+                    } else if (which == 6) {
+                        showComboOptions();
+                    } else if (which == 7) {
+                        diagnostics.setEnabled(!diagnostics.enabled());
+                        prefs.edit().putBoolean(KEY_DIAGNOSTICS, diagnostics.enabled()).apply();
+                    } else if (which == 8) {
+                        TotkActivity.nativeOverlayCycle(); // off -> fps -> full -> off
+                    } else if (which == 9) {
+                        diagnostics.share();
+                    } else if (which == 10) {
+                        diagnostics.clear();
                     } else {
+                        resetInput();
                         scale = 1f; opacity = .46f; visible = true;
-                        proStyle = true; haptics = true;
+                        proStyle = true; haptics = true; comboEnabled = false;
+                        bindings.setToggleZl(false);
+                        bindings.setCombo(ZL, A);
+                        diagnostics.setEnabled(false);
                         prefs.edit().clear().apply();
                         layoutControls(getWidth(), getHeight());
                     }
                     invalidate();
                 }).setNegativeButton("Cancel", null).show();
     }
+
+    private String comboName() {
+        return ACTION_LABELS[bindings.comboFirst()] + "+" + ACTION_LABELS[bindings.comboSecond()];
+    }
+    private void showComboOptions() {
+        String[] items = {
+                comboEnabled ? "Hide M1" : "Show M1",
+                "First action: " + ACTION_LABELS[bindings.comboFirst()],
+                "Second action: " + ACTION_LABELS[bindings.comboSecond()]
+        };
+        new AlertDialog.Builder(activity).setTitle("M1 · hold two buttons together")
+                .setItems(items, (dialog, choice) -> {
+                    if (choice == 0) {
+                        resetInput();
+                        comboEnabled = !comboEnabled;
+                        prefs.edit().putBoolean(KEY_COMBO_ENABLED, comboEnabled).apply();
+                        invalidate();
+                    } else showComboActionPicker(choice == 1);
+                }).setNegativeButton("Cancel", null).show();
+    }
+    private void showComboActionPicker(boolean first) {
+        final int selected = first ? bindings.comboFirst() : bindings.comboSecond();
+        new AlertDialog.Builder(activity).setTitle(first ? "M1 first action" : "M1 second action")
+                .setSingleChoiceItems(ACTION_LABELS, selected, (dialog, choice) -> {
+                    final int other = first ? bindings.comboSecond() : bindings.comboFirst();
+                    if (choice == other) {
+                        dialog.dismiss();
+                        new AlertDialog.Builder(activity).setMessage("Choose two different buttons for M1.")
+                                .setPositiveButton("OK", null).show();
+                        return;
+                    }
+                    resetInput();
+                    bindings.setCombo(first ? choice : other, first ? other : choice);
+                    prefs.edit().putInt(KEY_COMBO_FIRST, bindings.comboFirst())
+                            .putInt(KEY_COMBO_SECOND, bindings.comboSecond()).apply();
+                    invalidate();
+                    dialog.dismiss();
+                }).setNegativeButton("Cancel", null).show();
+    }
+
     private static int nearest(float[] values, float target) {
         int best = 0;
         for (int i = 1; i < values.length; i++)
@@ -476,6 +592,44 @@ public final class TouchControlsView extends View {
         canvas.drawCircle(knobX, knobY, cap - dp(2.1f), paint);
     }
 
+    private void drawCombo(Canvas canvas) {
+        if (!visible || !comboEnabled) return;
+        boolean down = false;
+        for (int i = 0; i < pointers.size(); i++)
+            if (pointers.valueAt(i).mode == MODE_MACRO) { down = true; break; }
+        float hw = comboRadius * 1.30f, hh = comboRadius * .73f;
+        shape.set(comboX - hw, comboY - hh, comboX + hw, comboY + hh);
+        fill(down ? 0xffb2c8db : 0xff18232e, down ? 1.5f : 1.17f);
+        canvas.drawRoundRect(shape, hh, hh, paint);
+        stroke(0xffe3ebf5, down ? 1.6f : 1f, dp(1.4f));
+        canvas.drawRoundRect(shape, hh, hh, paint);
+        fill(down ? 0xff162431 : Color.WHITE, 1.65f);
+        paint.setTypeface(CONTROL_FONT); paint.setTextAlign(Paint.Align.CENTER);
+        paint.setTextSize(comboRadius * .75f);
+        canvas.drawText("M1", comboX, comboY - (paint.ascent() + paint.descent()) / 2f, paint);
+        fill(Color.WHITE, .95f); paint.setTextSize(dp(10));
+        canvas.drawText(comboName(), comboX, comboY - hh - dp(5), paint);
+    }
+
+    private void drawDebugPanel(Canvas canvas) {
+        if (!diagnostics.enabled()) return;
+        String[] lines = {diagnostics.status(), diagnostics.detail()};
+        float width = Math.min(getWidth() * .58f, dp(430));
+        float center = getWidth() * .5f;
+        float top = menu.bottom + dp(6);
+        shape.set(center - width / 2, top, center + width / 2, top + dp(37));
+        paint.setStyle(Paint.Style.FILL); paint.setColor(0xff071422); paint.setAlpha(214);
+        canvas.drawRoundRect(shape, dp(7), dp(7), paint);
+        paint.setTypeface(CONTROL_FONT); paint.setTextAlign(Paint.Align.CENTER);
+        for (int i = 0; i < lines.length; i++) {
+            paint.setColor(i == 0 ? 0xffe5f2ff : 0xffaecbdc); paint.setAlpha(235);
+            paint.setTextSize(dp(10));
+            float measured = paint.measureText(lines[i]);
+            if (measured > width - dp(10)) paint.setTextSize(dp(10) * (width - dp(10)) / measured);
+            canvas.drawText(lines[i], center, top + dp(14 + i * 16), paint);
+        }
+    }
+
     @Override protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
         if (!drewOnce) {
@@ -489,6 +643,14 @@ public final class TouchControlsView extends View {
             if (proStyle) drawProDpad(canvas);
             drawStick(canvas, true);
             drawStick(canvas, false);
+            drawCombo(canvas);
+            if (bindings.toggleZl() && bindings.latchedZl()) {
+                fill(0xffb2c8db, 1.7f);
+                paint.setTypeface(CONTROL_FONT); paint.setTextAlign(Paint.Align.CENTER);
+                paint.setTextSize(dp(9));
+                Button b = buttons[ZL];
+                canvas.drawText("LOCK", b.x, b.y - b.radius * 1.48f, paint);
+            }
         }
         // The menu stays available even when the pad is hidden.
         paint.setStyle(Paint.Style.FILL); paint.setColor(Color.BLACK); paint.setAlpha(145);
@@ -500,5 +662,6 @@ public final class TouchControlsView extends View {
         paint.setTypeface(android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL));
         paint.setTextAlign(Paint.Align.CENTER); paint.setTextSize(dp(12));
         canvas.drawText("PAD", menu.centerX(), menu.centerY() - (paint.ascent() + paint.descent()) / 2f, paint);
+        drawDebugPanel(canvas);
     }
 }

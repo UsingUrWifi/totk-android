@@ -124,6 +124,9 @@ int vk_overlay_available(void);
 int vk_overlay_cycle(void);
 void vk_overlay_target(double period_s);
 void vk_overlay_presented(uint64_t now_ns, int generated);
+/* Read cumulative presented/real handoff counts without touching recording-owned history.
+ * Called from a Java diagnostic sampler at most once every two seconds. */
+void vk_overlay_handoff_totals(uint32_t *total, uint32_t *real);
 /* Best-effort relaxed publications; no initialisation, allocation, locking, or clock reads.
    Setters are no-ops while the overlay is unavailable. Zero render extent means unknown; canvas is the
    game's active output crop, not allocation padding. GAME NONE uses the mode's built-in scaler

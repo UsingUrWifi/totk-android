@@ -58,6 +58,10 @@ public final class TotkActivity extends NativeActivity {
     private static native void nativeGameFocus(boolean focused, boolean singleDisplay);
     private static native void nativeGameInputFocus(boolean top);
     static native void nativeTouchInput(long buttons, int lx, int ly, int rx, int ry);
+    /** Relaxed counters from the Vulkan presenter, packed real<<32 | displayed. */
+    static native long nativePerfTotals();
+    static native int nativeOverlayMode();
+    static native int nativeOverlayCycle();
 
     /** runtime/frontend_android.c, on this (the UI) thread: the game asks for text (nn::swkbd). TextEntry answers exactly
      * once: the UTF-8 text, or null when the player cancelled. */

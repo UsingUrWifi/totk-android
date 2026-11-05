@@ -36,6 +36,22 @@ void runtime_android_motion(JNIEnv *env, jclass cls, jfloat ax, jfloat ay, jfloa
 void runtime_android_motion_live(JNIEnv *env, jclass cls, jboolean on, jstring source);
 jint runtime_android_feedback_enabled(JNIEnv *env, jclass cls);
 void runtime_android_touch_input(JNIEnv *env, jclass cls, jlong buttons, jint lx, jint ly, jint rx, jint ry);
+/* Renderer already publishes lock-free cumulative handoff counters. No per-frame JNI. */
+void vk_overlay_handoff_totals(uint32_t *total, uint32_t *real);
+int vk_overlay_mode(void);
+int vk_overlay_cycle(void);
+static jlong JNICALL native_perf_totals(JNIEnv *env, jclass cls) {
+    (void)env; (void)cls;
+    uint32_t total = 0, real = 0;
+    vk_overlay_handoff_totals(&total, &real);
+    return (jlong)(((uint64_t)real << 32) | total);
+}
+static jint JNICALL native_overlay_mode(JNIEnv *env, jclass cls) {
+    (void)env; (void)cls; return vk_overlay_mode();
+}
+static jint JNICALL native_overlay_cycle(JNIEnv *env, jclass cls) {
+    (void)env; (void)cls; return vk_overlay_cycle();
+}
 
 /* Do not cache this in JNI_OnLoad: NativeActivity's start_game reads totk.env
    synchronously during super.onCreate, before Java constructs its controller. */
@@ -179,6 +195,9 @@ __attribute__((visibility("default"))) jint JNI_OnLoad(JavaVM *vm, void *reserve
             {"nativeGameFocus", "(ZZ)V", (void *)runtime_android_game_focus},
             {"nativeGameInputFocus", "(Z)V", (void *)runtime_android_game_input_focus},
             {"nativeTouchInput", "(JIIII)V", (void *)runtime_android_touch_input},
+            {"nativePerfTotals", "()J", (void *)native_perf_totals},
+            {"nativeOverlayMode", "()I", (void *)native_overlay_mode},
+            {"nativeOverlayCycle", "()I", (void *)native_overlay_cycle},
             {"nativeMotion", "(FFFFFF)V", (void *)runtime_android_motion},
             {"nativeMotionLive", "(ZLjava/lang/String;)V", (void *)runtime_android_motion_live},
             {"nativeFeedbackEnabled", "()I", (void *)runtime_android_feedback_enabled},
