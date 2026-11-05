@@ -1285,7 +1285,7 @@ public final class SetupActivity extends Activity implements SetupService.Listen
     private void controls() {
         header("controls", Strings.CONTROLS, 0, null);
         Widgets.Panel list = panel(80, 186, 1040, 720, false, 28, 28);
-        for (String key : new String[]{"buttons", "rumble", "motion", "audio_latency", "game_language", "pcache_stats"}) settingRow(list, key);
+        for (String key : new String[]{"buttons", "rumble", "motion", "audio_latency", "game_language", "pcache_stats", "stutter_trace"}) settingRow(list, key);
         detailPanel();
         primary = settingRows.get("buttons");
         refreshSettings();

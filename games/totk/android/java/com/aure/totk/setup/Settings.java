@@ -53,6 +53,7 @@ final class Settings {
         new Option("audio_latency", CONTROLS, "balanced", "low", "balanced", "safe"),
         new Option("rumble", CONTROLS, "100", "0", "25", "50", "75", "100"),
         new Option("pcache_stats", CONTROLS, "off", "off", "on"),
+        new Option("stutter_trace", CONTROLS, "off", "off", "on"),
         new Option("motion", CONTROLS, "on", "on", "off"),
         new Option("game_language", CONTROLS, "auto", LANGUAGES),
     };
@@ -214,6 +215,7 @@ final class Settings {
         if (get("refresh_hint").equals("60")) line(out, "TOTK_FRAME_RATE_HINT=60");
         if (get("perf_hints").equals("full")) line(out, "TOTK_ADPF=full");
         if (get("pcache_stats").equals("on")) line(out, "TOTK_PCACHE_STATS=1");
+        if (get("stutter_trace").equals("on")) line(out, "TOTK_VK_HITCH=1");
         if (!get("render_res").equals("game")) line(out, "TOTK_RENDER_RES=" + get("render_res"));
         if (!framegen) line(out, "TOTK_ACQUIRE_SLACK=" + Arrays.asList("responsive", "balanced", "smoothest").indexOf(get("latency")));
         String upscaler = get("upscaler");

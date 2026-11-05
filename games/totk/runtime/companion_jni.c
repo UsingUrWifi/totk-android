@@ -36,6 +36,7 @@ void runtime_android_motion(JNIEnv *env, jclass cls, jfloat ax, jfloat ay, jfloa
 void runtime_android_motion_live(JNIEnv *env, jclass cls, jboolean on, jstring source);
 jint runtime_android_feedback_enabled(JNIEnv *env, jclass cls);
 void runtime_android_touch_input(JNIEnv *env, jclass cls, jlong buttons, jint lx, jint ly, jint rx, jint ry);
+jstring runtime_android_stutter_excerpt(JNIEnv *env, jclass cls);
 /* Renderer already publishes lock-free cumulative handoff counters. No per-frame JNI. */
 void vk_overlay_handoff_totals(uint32_t *total, uint32_t *real);
 int vk_overlay_mode(void);
@@ -196,6 +197,7 @@ __attribute__((visibility("default"))) jint JNI_OnLoad(JavaVM *vm, void *reserve
             {"nativeGameInputFocus", "(Z)V", (void *)runtime_android_game_input_focus},
             {"nativeTouchInput", "(JIIII)V", (void *)runtime_android_touch_input},
             {"nativePerfTotals", "()J", (void *)native_perf_totals},
+            {"nativeStutterExcerpt", "()Ljava/lang/String;", (void *)runtime_android_stutter_excerpt},
             {"nativeOverlayMode", "()I", (void *)native_overlay_mode},
             {"nativeOverlayCycle", "()I", (void *)native_overlay_cycle},
             {"nativeMotion", "(FFFFFF)V", (void *)runtime_android_motion},

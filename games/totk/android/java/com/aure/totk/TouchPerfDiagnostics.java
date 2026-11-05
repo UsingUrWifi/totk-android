@@ -150,7 +150,9 @@ final class TouchPerfDiagnostics {
                 "Mode Hz = Android-reported display mode, not a physical-vsync measurement.\n" +
                 "CPU % = whole process CPU time, where 100% equals one fully used core.\n" +
                 "Thermal status 0 = none; -1 = not reported. No personal game data is collected.\n\n" +
-                CSV_HEADER + "\n" + csv.toString());
+                CSV_HEADER + "\n" + csv.toString() +
+                "\n-- Selected recent native stutter events (local log, max 48 lines) --\n" +
+                TotkActivity.nativeStutterExcerpt());
         try { activity.startActivity(Intent.createChooser(intent, "Share performance log")); }
         catch (RuntimeException failed) { Log.w(TAG, "No share target available", failed); }
     }

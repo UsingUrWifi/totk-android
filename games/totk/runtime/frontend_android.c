@@ -57,6 +57,7 @@
 #include "overlay_chord.h"
 int totk_host_main(int argc, char **argv);
 #include "android_pause.h"
+#include "stutter_excerpt.h"
 static AndroidGamePause game_pause = ANDROID_GAME_PAUSE_INIT;
 int runtime_android_game_paused(void) {
     return atomic_load_explicit(&game_pause.paused, memory_order_acquire);
@@ -1122,6 +1123,22 @@ static void log_start(void) {
     __android_log_print(ANDROID_LOG_INFO, "totk", "log: %s", path);
 }
 
+/* Bounded, read-only native excerpt for the player's explicit PAD Share action.
+ * Called only on request; never on the renderer or timing-critical thread. */
+jstring runtime_android_stutter_excerpt(JNIEnv *env, jclass cls) {
+    (void)cls;
+    if (!g_data[0]) return (*env)->NewStringUTF(env, "Game log folder is unavailable.");
+    char path[1200];
+    if (snprintf(path, sizeof path, "%s/totk.log", g_data) >= (int)sizeof path)
+        return (*env)->NewStringUTF(env, "Game log path is too long.");
+    FILE *f = fopen(path, "rb");
+    if (!f) return (*env)->NewStringUTF(env, "Game log could not be opened.");
+    char excerpt[20000];
+    totk_stutter_excerpt(f, excerpt, sizeof excerpt);
+    fclose(f);
+    return (*env)->NewStringUTF(env, excerpt);
+}
+
 /* ---------- options ---------- */
 #include "android_storage.h"   /* TOTK_DATA_DIR validation and the game lock */
 /* The game lock (android_storage.h), taken by start_game and held until the process ends; given back when the start is
@@ -1138,7 +1155,7 @@ static const char *const settings_keys[] = {
     "TOTK_POST_SGSR_SHARPNESS", "TOTK_FXAA", "TOTK_POST_AA", "TOTK_SHADOW_RES", "TOTK_OPERATION_MODE", "TOTK_NATIVE_UI",
     "TOTK_OVERLAY", "TOTK_OVERLAY_POS", "TOTK_COMPANION", "TOTK_FACE_BUTTONS", "TOTK_AUDIO_PREFILL_MS", "TOTK_LOCALE",
     "TOTK_LANG", "TOTK_RUMBLE", "TOTK_RUMBLE_GAIN", "TOTK_GYRO", "TOTK_AUTOLOAD",
-    "TOTK_FRAME_RATE_HINT", "TOTK_ADPF", "TOTK_PCACHE_STATS",
+    "TOTK_FRAME_RATE_HINT", "TOTK_ADPF", "TOTK_PCACHE_STATS", "TOTK_VK_HITCH",
     /* frame generation timing block */
     "TOTK_REALTIME", "TOTK_FRAME_LAG", "TOTK_FPS_AUTO", "DM_PRESENT_HZ", "DM_PRESENT_INTERVAL", "TOTK_PRESENT_SLOTS",
     "TOTK_VK_PRESENT", "TOTK_ACQUIRE_CLOCK", "TOTK_PACE", "TOTK_ASYNC_REPLAY",

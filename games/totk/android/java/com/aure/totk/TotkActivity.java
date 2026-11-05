@@ -60,6 +60,7 @@ public final class TotkActivity extends NativeActivity {
     static native void nativeTouchInput(long buttons, int lx, int ly, int rx, int ry);
     /** Relaxed counters from the Vulkan presenter, packed real<<32 | displayed. */
     static native long nativePerfTotals();
+    static native String nativeStutterExcerpt();
     static native int nativeOverlayMode();
     static native int nativeOverlayCycle();
 

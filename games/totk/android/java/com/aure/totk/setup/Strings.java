@@ -142,6 +142,7 @@ final class Strings {
             case "game_language": return "Game language";
             case "rumble": return "Rumble";
             case "pcache_stats": return "Pipeline cache logging";
+            case "stutter_trace": return "Frame stutter trace";
             case "motion": return "Motion controls";
             default: return key;
         }
@@ -167,6 +168,7 @@ final class Strings {
             case "audio_latency": return "Low · Balanced · Safe";
             case "game_language": return "Text and voices in the game";
             case "rumble": return "Vibration strength · Off";
+            case "stutter_trace": return "Capture 50+ ms frame stalls, shader builds and GPU waits";
             case "pcache_stats": return "Log Vulkan pipeline cache saves and pauses; troubleshooting only";
             case "motion": return "Aiming by tilting the device or controller";
             default: return "";
@@ -211,6 +213,9 @@ final class Strings {
                     + "systems and wireless headphones.";
             case "game_language": return "The language of the game's text and voices. Device language follows this device's first "
                     + "language when the game has it, and falls back to English otherwise.";
+            case "stutter_trace": return "For a short Fold 5 stutter investigation, record 50 ms+ frame stalls and "
+                    + "native pipeline, shader and GPU-wait timings in totk.log. The PAD Share performance log option "
+                    + "includes a bounded selection of these entries. Adds tracing overhead; leave off for normal play.";
             case "pcache_stats": return "For a controlled stutter test, log cache extraction timing, saved sizes and "
                     + "pipeline-cache decisions in the game's totk.log. It does not erase, reset, or disable the existing cache, "
                     + "which is already persistent and asynchronous. Leave off for normal play.";
@@ -226,7 +231,7 @@ final class Strings {
             case "frame_rate": return value + " fps";
             case "refresh_hint": return value.equals("60") ? "Prefer 60 Hz" : "System auto";
             case "perf_hints": return value.equals("full") ? "Full (test)" : "Current";
-            case "pcache_stats": return value.equals("on") ? "On" : "Off";
+            case "pcache_stats": case "stutter_trace": return value.equals("on") ? "On" : "Off";
             case "frame_gen": return value.equals("on") ? "Interpolation" : "Off";
             case "render_res": return value.equals("game") ? "Game default" : value.replace("x", " × ");
             case "upscaler": return upscalerName(value);
