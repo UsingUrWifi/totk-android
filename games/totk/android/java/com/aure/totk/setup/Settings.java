@@ -39,6 +39,8 @@ final class Settings {
         new Option("latency", PERFORMANCE, "balanced", "responsive", "balanced", "smoothest"),
         new Option("perf_hints", PERFORMANCE, "legacy", "legacy", "full"),
         new Option("priority30", PERFORMANCE, "off", "off", "on"),
+        new Option("shadow_passes", PICTURE, "4", "4", "3", "2"),
+        new Option("far_clamp", PICTURE, "auto", "auto", "1000", "500", "200"),
         new Option("upscaler", PICTURE, "off", "off", "fsr", "sgsr"),
         new Option("sharpness_fsr", PICTURE, "20"),
         new Option("sharpness_sgsr", PICTURE, "50"),
@@ -115,6 +117,10 @@ final class Settings {
         values.put("upscaler", "off");
         values.put("aa", "off");
         values.put("shadows", "low");
+        // Unlike resolution-only shadow reductions, two directional cascades
+        // can reduce CPU-side caster draws. 1.4.3-only guarded guest patch.
+        values.put("shadow_passes", "2");
+        // Do not automatically truncate the open-world horizon.
         values.put("refresh_hint", "60");
         values.put("stutter_trace", "off");
         values.put("pcache_stats", "off");
@@ -126,7 +132,8 @@ final class Settings {
     private static boolean priority30Controls(String key) {
         switch (key) {
             case "frame_rate": case "frame_gen": case "render_res": case "latency":
-            case "upscaler": case "aa": case "shadows": case "refresh_hint": return true;
+            case "upscaler": case "aa": case "shadows": case "shadow_passes":
+            case "refresh_hint": return true;
             default: return false;
         }
     }
@@ -174,6 +181,9 @@ final class Settings {
     void applyPreset(String name) {
         int preset = Arrays.asList(PRESETS).indexOf(name);
         if (preset < 0) return;
+        // The new caster reduction is part of Priority30, not a hidden
+        // override after selecting an ordinary preset.
+        if ("on".equals(get("priority30"))) values.put("shadow_passes", "4");
         values.put("priority30", "off"); // Explicit preset selection leaves priority mode.
         for (int k = 0; k < PRESET_KEYS.length; k++) if (PRESET_VALUES[preset][k] != null) values.put(PRESET_KEYS[k], PRESET_VALUES[preset][k]);
     }
@@ -215,6 +225,8 @@ final class Settings {
     static boolean profileKnown(String soc) { return socClass(soc) != null; }
     /** Y on a tab: the device's default values for that tab (the profile's preset for Performance and Picture). */
     void defaults(String tab, String soc) {
+        if ("on".equals(get("priority30")) &&
+                (tab.equals(PERFORMANCE) || tab.equals(PICTURE))) values.put("shadow_passes", "4");
         if (tab.equals(PERFORMANCE) || tab.equals(PICTURE)) values.put("priority30", "off");
         for (Option option : OPTIONS) if (option.tab.equals(tab)) values.put(option.key, option.fallback);
         if (tab.equals(PERFORMANCE) || tab.equals(PICTURE)) {
@@ -249,6 +261,10 @@ final class Settings {
         if (get("pcache_stats").equals("on")) line(out, "TOTK_PCACHE_STATS=1");
         if (get("stutter_trace").equals("on")) line(out, "TOTK_VK_HITCH=1");
         if (!get("render_res").equals("game")) line(out, "TOTK_RENDER_RES=" + get("render_res"));
+        // Version 1.4.3 verifies the original instructions before either
+        // rendering reduction is applied. Unset means game-native.
+        if (!get("shadow_passes").equals("4")) line(out, "TOTK_SHADOW_CASCADES=" + get("shadow_passes"));
+        if (!get("far_clamp").equals("auto")) line(out, "TOTK_FAR_CLAMP=" + get("far_clamp"));
         if (!framegen) line(out, "TOTK_ACQUIRE_SLACK=" + Arrays.asList("responsive", "balanced", "smoothest").indexOf(get("latency")));
         String upscaler = get("upscaler");
         line(out, "TOTK_POST_SCALE=" + upscaler);

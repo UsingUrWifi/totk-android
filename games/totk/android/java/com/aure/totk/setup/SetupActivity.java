@@ -1262,7 +1262,7 @@ public final class SetupActivity extends Activity implements SetupService.Listen
         List<String> keys = new ArrayList<>();
         switch (tab) {
             case Settings.PERFORMANCE: keys.addAll(Arrays.asList("frame_rate", "frame_gen", "render_res", "latency", "perf_hints", "priority30")); break;
-            case Settings.PICTURE: keys.addAll(Arrays.asList("upscaler", "sharpness", "aa", "shadows")); break;
+            case Settings.PICTURE: keys.addAll(Arrays.asList("upscaler", "sharpness", "aa", "shadows", "shadow_passes", "far_clamp")); break;
             default:
                 keys.addAll(Arrays.asList("console_mode", "native_hud", "refresh_hint", "overlay", "overlay_pos"));
                 if (SettingsStore.secondaryDisplay(this)) keys.add("second_screen");
@@ -1283,6 +1283,17 @@ public final class SetupActivity extends Activity implements SetupService.Listen
                 LinearLayout.LayoutParams lp = (LinearLayout.LayoutParams) row.getLayoutParams();
                 lp.height = Theme.u(70);
                 lp.bottomMargin = Theme.u(8);
+                row.setLayoutParams(lp);
+            }
+        } else if (tab.equals(Settings.PICTURE)) {
+            // Six rows must stay inside the 720px panel (664px usable after
+            // padding). 6*(84+10)=564px; don't repeat the Controls cutoff.
+            for (String key : keys) {
+                settingRow(list, key);
+                Widgets.Row row = settingRows.get(key);
+                LinearLayout.LayoutParams lp = (LinearLayout.LayoutParams) row.getLayoutParams();
+                lp.height = Theme.u(84);
+                lp.bottomMargin = Theme.u(10);
                 row.setLayoutParams(lp);
             }
         } else {

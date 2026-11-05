@@ -132,6 +132,8 @@ final class Strings {
             case "sharpness_fsr": case "sharpness_sgsr": return "Sharpness";
             case "aa": return "Anti-aliasing";
             case "shadows": return "Shadows";
+            case "shadow_passes": return "Directional shadow passes";
+            case "far_clamp": return "Distant scenery";
             case "console_mode": return "Console mode";
             case "native_hud": return "Native HUD";
             case "refresh_hint": return "Display refresh";
@@ -160,6 +162,8 @@ final class Strings {
             case "sharpness_fsr": case "sharpness_sgsr": return "Applies to the upscaler";
             case "aa": return "Smooths jagged edges";
             case "shadows": return "Lower saves GPU time in busy areas";
+            case "shadow_passes": return "Fewer cascades can reduce CPU-side caster draws";
+            case "far_clamp": return "Optional render-camera limit · visible pop-in possible";
             case "console_mode": return "Docked uses the game's larger TV resolution";
             case "native_hud": return "Draws menus and text at the panel's own resolution";
             case "refresh_hint": return "Prefer 60 Hz during play · or let Android choose";
@@ -190,7 +194,7 @@ final class Strings {
                     + "adds critical native game, renderer, and pipeline threads to an Android performance hint session when the device supports it. "
                     + "May help or hurt. Change one setting at a time and compare matched scenes.";
             case "priority30": return "Opt-in real-30 performance priority. Applies 540p scene rendering, low shadows, "
-                    + "no frame generation, no post upscaler, FXAA off, balanced input latency and a 60 Hz refresh request. "
+                    + "no frame generation, no post upscaler, FXAA off, two directional shadow cascades, balanced input latency and a 60 Hz refresh request. "
                     + "Turns off costly stutter/pipeline tracing for ordinary play; keeps CPU hints unchanged. "
                     + "Does not modify shaders, driver or GPU synchronization. "
                     + "The aim is fewer drops below 30, not a guarantee. Manually changing a related setting releases this profile. "
@@ -203,6 +207,12 @@ final class Strings {
                     + "textures sharper for a little more GPU time; Off is crispest but shows the steps.";
             case "shadows": return "The resolution of the shadow maps. Lower saves GPU time where many shadows are on screen; their "
                     + "edges get softer and blockier.";
+            case "shadow_passes": return "The original game may use four directional shadow cascades. Three or two caps the "
+                    + "number of caster passes the CPU and GPU record and render, at the cost of distant-shadow quality "
+                    + "and coverage transitions. Requires the game's verified 1.4.3 patch; do not use as a blanket guarantee of 30 fps.";
+            case "far_clamp": return "Optional render-camera far-plane cap in metres. Auto preserves the game's draw distance. "
+                    + "A lower cap can reduce distant draws but may cause obvious scenery/horizon clipping or objects popping in. "
+                    + "Physics, actors and streaming are unchanged. Requires verified game version 1.4.3.";
             case "console_mode": return "Handheld runs the game as on a Switch held in your hands. Docked makes it believe it is "
                     + "connected to a TV: it draws at its larger docked resolution and needs more GPU time.";
             case "native_hud": return "Draws the game's menus, map and text at the screen's own resolution instead of enlarging them "
@@ -243,6 +253,8 @@ final class Strings {
             case "pcache_stats": case "stutter_trace": return value.equals("on") ? "On" : "Off";
             case "frame_gen": return value.equals("on") ? "Interpolation" : "Off";
             case "render_res": return value.equals("game") ? "Game default" : value.replace("x", " × ");
+            case "shadow_passes": return value.equals("4") ? "Original (4)" : value + " passes";
+            case "far_clamp": return value.equals("auto") ? "Game default" : value + " m";
             case "upscaler": return upscalerName(value);
             case "aa": return value.equals("fxaa") ? "Game (FXAA)" : value.equals("smaa") ? "SMAA" : "Off";
             case "overlay": return value.equals("fps") ? "FPS" : value.equals("full") ? "Full" : "Off";
