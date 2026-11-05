@@ -1,0 +1,128 @@
+name: Build TotK Native Touch Test APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [touch-controls]
+    paths:
+      - 'games/totk/android/java/com/aure/totk/TouchControlsView.java'
+      - 'games/totk/android/java/com/aure/totk/TotkActivity.java'
+      - 'games/totk/runtime/frontend_android.c'
+      - 'games/totk/runtime/companion_jni.c'
+      - '.github/workflows/build-totk-touch.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  android-apk:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    steps:
+      - name: Checkout patched source
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Verify touchscreen source is present
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'class TouchControlsView' games/totk/android/java/com/aure/totk/TouchControlsView.java
+          grep -q 'nativeTouchInput' games/totk/android/java/com/aure/totk/TotkActivity.java
+          grep -q 'runtime_android_touch_input' games/totk/runtime/frontend_android.c
+          grep -q 'nativeTouchInput' games/totk/runtime/companion_jni.c
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Install native build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential git cmake ninja-build rsync pkg-config \
+            clang lld llvm libicu-dev zlib1g-dev libssl-dev \
+            unzip zip autoconf automake libtool
+          python -m pip install 'cryptography==50.0.2'
+
+      - name: Configure Android SDK and NDK r28
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager --install 'platforms;android-35' 'build-tools;35.0.0' 'ndk;28.2.13676358'
+          echo "ANDROID_NDK_HOME=${ANDROID_HOME}/ndk/28.2.13676358" >> "$GITHUB_ENV"
+
+      - name: Obtain pinned open-source Turnip driver from public APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 --output "$RUNNER_TEMP/upstream.apk" \
+            'https://github.com/AurelioB/totk-android/releases/download/v1.0.1/TotK-Native-1.0.1.apk'
+          unzip -p "$RUNNER_TEMP/upstream.apk" 'lib/arm64-v8a/libtotk_turnip.so' > "$RUNNER_TEMP/turnip.so"
+          echo "9b87afeb3d8d30c6a0ad5aab3e0703bc1500e0321e9f17a922106fa556389ec6  $RUNNER_TEMP/turnip.so" | sha256sum --check --status
+
+      - name: Generate temporary test-only APK signing certificate
+        shell: bash
+        run: |
+          set -euo pipefail
+          openssl req -x509 -newkey rsa:3072 -nodes \
+            -keyout "$RUNNER_TEMP/totk-test-key.pem" \
+            -out "$RUNNER_TEMP/totk-test-cert.pem" \
+            -days 3 -subj '/CN=TotK Native Touch Test'
+          cat "$RUNNER_TEMP/totk-test-key.pem" "$RUNNER_TEMP/totk-test-cert.pem" > "$RUNNER_TEMP/totk-test-signing.pem"
+
+      - name: Isolate test APK from the installed official app
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PYTHON'
+          from pathlib import Path
+          p = Path('games/totk/android/build_release.py')
+          source = p.read_text()
+          needle = "    cmd += (['--key-pass-env', key_pass_env] if key_pass_env else []) + (['--make-key'] if make_key else [])"
+          assert source.count(needle) == 1, 'Upstream APK packager changed; refusing an unsafe build'
+          source = source.replace(needle, "    cmd += ['--package', 'com.usingurwifi.totktouch', '--label', 'TotK Touch Test']\n" + needle)
+          p.write_text(source)
+          PYTHON
+          grep -F 'com.usingurwifi.totktouch' games/totk/android/build_release.py
+
+      - name: Build, sign and audit Android APK (no game data)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 games/totk/android/build_release.py \
+            --ndk "$ANDROID_NDK_HOME" \
+            --turnip "$RUNNER_TEMP/turnip.so" \
+            --key "$RUNNER_TEMP/totk-test-signing.pem" \
+            --version-name '1.0.1-touch-test' \
+            --version-code 10101 \
+            --jobs 4 \
+            --out "$GITHUB_WORKSPACE/TotK-Touch-Test.apk"
+          sha256sum "$GITHUB_WORKSPACE/TotK-Touch-Test.apk" > "$GITHUB_WORKSPACE/TotK-Touch-Test.apk.sha256"
+
+      - name: Upload test APK
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: TotK-Touch-Test-APK
+          path: |
+            TotK-Touch-Test.apk
+            TotK-Touch-Test.apk.sha256
+          retention-days: 3

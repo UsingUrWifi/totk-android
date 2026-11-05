@@ -8,6 +8,8 @@ import android.os.Bundle;
 import android.util.Log;
 import android.view.AttachedSurfaceControl;
 import android.view.View;
+import android.view.ViewGroup;
+import android.widget.FrameLayout;
 import com.aure.totk.companion.AssetStore;
 import com.aure.totk.companion.CompanionNative;
 import com.aure.totk.companion.DisplayClass;
@@ -20,6 +22,7 @@ import java.nio.charset.StandardCharsets;
  * SetupActivity (process ":setup") starts it once install.json is playable; the game process never loads the setup library. */
 public final class TotkActivity extends NativeActivity {
     private PresentationController companion;
+    private TouchControlsView touchControls;
     /** Copies the saves to the player's save folder after each in-game save (null when no folder is set). */
     private SaveMirror.Watcher saves;
     private AttachedSurfaceControl presentRoot;
@@ -52,6 +55,7 @@ public final class TotkActivity extends NativeActivity {
     private static native void nativeTextInputDone(long serial, byte[] utf8);
     private static native void nativeGameFocus(boolean focused, boolean singleDisplay);
     private static native void nativeGameInputFocus(boolean top);
+    static native void nativeTouchInput(long buttons, int lx, int ly, int rx, int ry);
 
     /** runtime/frontend_android.c, on this (the UI) thread: the game asks for text (nn::swkbd). TextEntry answers exactly
      * once: the UTF-8 text, or null when the player cancelled. */
@@ -126,6 +130,19 @@ public final class TotkActivity extends NativeActivity {
         // Query only after super, before constructing a controller or display listener.
         // The companion art is generated on the device by the optional setup stage; without it the companion stays off.
         if (CompanionNative.isEnabled() && AssetStore.available(this)) companion = new PresentationController(this, new CompanionNative());
+        // Draw a controller above NativeActivity's game surface. No overlay permission needed.
+        // A failure must not prevent physical controllers or game startup.
+        try {
+            View decor = getWindow().getDecorView();
+            if (decor instanceof ViewGroup) {
+                touchControls = new TouchControlsView(this);
+                ((ViewGroup) decor).addView(touchControls, new FrameLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+                touchControls.bringToFront();
+            }
+        } catch (RuntimeException problem) {
+            Log.e("TotkTouch", "Unable to attach touch controller", problem);
+        }
         saves = SaveMirror.Watcher.start(this);
         int given = nativeFeedbackEnabled();   // what start_game gave the game (TOTK_RUMBLE / TOTK_GYRO and the hardware)
         if (given != 0 && !isFinishing()) feedback = new GameFeedback(this, given);
@@ -168,6 +185,7 @@ public final class TotkActivity extends NativeActivity {
     @Override protected void onResume() {
         super.onResume();
         resumed = true;
+        if (touchControls != null) touchControls.resetInput();
         ensureMainDisplay();
         GameFeedback f = feedback;
         if (f != null) f.resume();
@@ -176,10 +194,12 @@ public final class TotkActivity extends NativeActivity {
     @Override public void onTopResumedActivityChanged(boolean top) {
         super.onTopResumedActivityChanged(top);
         nativeGameInputFocus(top); // a release routed to another display must not leave a controller button held
+        if (!top && touchControls != null) touchControls.resetInput();
         if (companion != null) companion.ownerTopResumed(top);
     }
     @Override public void onWindowFocusChanged(boolean focused) {
         super.onWindowFocusChanged(focused);
+        if (!focused && touchControls != null) touchControls.resetInput();
         // Quickstep can leave the live recents tile RESUMED. On one display,
         // focus loss must pause too, and focus return need not call onResume.
         // Never apply that policy to multi-resume on a second display.
@@ -192,6 +212,7 @@ public final class TotkActivity extends NativeActivity {
         }
     }
     @Override protected void onPause() {
+        if (touchControls != null) touchControls.resetInput();
         resumed = false;
         GameFeedback f = feedback;
         if (f != null) f.pause();   // no motion in the background, and no motor left running
@@ -203,6 +224,12 @@ public final class TotkActivity extends NativeActivity {
         super.onStop();
     }
     @Override protected void onDestroy() {
+        if (touchControls != null) {
+            touchControls.resetInput();
+            ViewGroup parent = (ViewGroup) touchControls.getParent();
+            if (parent != null) parent.removeView(touchControls);
+            touchControls = null;
+        }
         updatePresentPrerotate(0);
         if (companion != null) { companion.close(); companion = null; }
         if (saves != null) { saves.close(1500); saves = null; }

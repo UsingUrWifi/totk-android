@@ -35,6 +35,7 @@ void runtime_android_game_input_focus(JNIEnv *env, jclass cls, jboolean top);
 void runtime_android_motion(JNIEnv *env, jclass cls, jfloat ax, jfloat ay, jfloat az, jfloat gx, jfloat gy, jfloat gz);
 void runtime_android_motion_live(JNIEnv *env, jclass cls, jboolean on, jstring source);
 jint runtime_android_feedback_enabled(JNIEnv *env, jclass cls);
+void runtime_android_touch_input(JNIEnv *env, jclass cls, jlong buttons, jint lx, jint ly, jint rx, jint ry);
 
 /* Do not cache this in JNI_OnLoad: NativeActivity's start_game reads totk.env
    synchronously during super.onCreate, before Java constructs its controller. */
@@ -177,6 +178,7 @@ __attribute__((visibility("default"))) jint JNI_OnLoad(JavaVM *vm, void *reserve
             {"nativeTextInputDone", "(J[B)V", (void *)runtime_android_text_done},
             {"nativeGameFocus", "(ZZ)V", (void *)runtime_android_game_focus},
             {"nativeGameInputFocus", "(Z)V", (void *)runtime_android_game_input_focus},
+            {"nativeTouchInput", "(JIIII)V", (void *)runtime_android_touch_input},
             {"nativeMotion", "(FFFFFF)V", (void *)runtime_android_motion},
             {"nativeMotionLive", "(ZLjava/lang/String;)V", (void *)runtime_android_motion_live},
             {"nativeFeedbackEnabled", "()I", (void *)runtime_android_feedback_enabled},
