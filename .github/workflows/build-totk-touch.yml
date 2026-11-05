@@ -59,14 +59,19 @@ jobs:
           python -m pip install 'cryptography==50.0.2'
 
       - name: Configure Android SDK and NDK r28
-        uses: android-actions/setup-android@v3
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDKMANAGER=$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager -print -quit)
+          test -x "$SDKMANAGER"
+          echo "SDKMANAGER=$SDKMANAGER" >> "$GITHUB_ENV"
 
       - name: Install Android packages
         shell: bash
         run: |
           set -euo pipefail
-          yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager --install 'platforms;android-35' 'build-tools;35.0.0' 'ndk;28.2.13676358'
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" --install 'platforms;android-35' 'build-tools;35.0.0' 'ndk;28.2.13676358'
           echo "ANDROID_NDK_HOME=${ANDROID_HOME}/ndk/28.2.13676358" >> "$GITHUB_ENV"
 
       - name: Obtain pinned open-source Turnip driver from public APK
