@@ -37,6 +37,7 @@ final class Settings {
         new Option("frame_gen", PERFORMANCE, "off", "off", "on"),
         new Option("render_res", PERFORMANCE, "game", "game", "1280x720", "1152x648", "960x540"),
         new Option("latency", PERFORMANCE, "balanced", "responsive", "balanced", "smoothest"),
+        new Option("perf_hints", PERFORMANCE, "legacy", "legacy", "full"),
         new Option("upscaler", PICTURE, "off", "off", "fsr", "sgsr"),
         new Option("sharpness_fsr", PICTURE, "20"),
         new Option("sharpness_sgsr", PICTURE, "50"),
@@ -44,12 +45,14 @@ final class Settings {
         new Option("shadows", PICTURE, "high", "high", "medium", "low"),
         new Option("console_mode", SCREEN, "handheld", "handheld", "docked"),
         new Option("native_hud", SCREEN, "off", "off", "on"),
+        new Option("refresh_hint", SCREEN, "60", "auto", "60"),
         new Option("overlay", SCREEN, "off", "off", "fps", "full"),
         new Option("overlay_pos", SCREEN, "tr", "tl", "tr", "bl", "br"),
         new Option("second_screen", SCREEN, "on", "off", "on"),
         new Option("buttons", CONTROLS, "nintendo", "nintendo", "xbox"),
         new Option("audio_latency", CONTROLS, "balanced", "low", "balanced", "safe"),
         new Option("rumble", CONTROLS, "100", "0", "25", "50", "75", "100"),
+        new Option("pcache_stats", CONTROLS, "off", "off", "on"),
         new Option("motion", CONTROLS, "on", "on", "off"),
         new Option("game_language", CONTROLS, "auto", LANGUAGES),
     };
@@ -206,6 +209,11 @@ final class Settings {
             // The device-tested 60 fps profile reports hardware GPU time (the FPS60 default, latency, overstates it).
             if (sixty) line(out, "TOTK_GPU_TIME=hardware");
         }
+        // Test-build preference: 60Hz remains a request, not a display lock.
+        // It is independent of 30fps game simulation and frame-generation mode.
+        if (get("refresh_hint").equals("60")) line(out, "TOTK_FRAME_RATE_HINT=60");
+        if (get("perf_hints").equals("full")) line(out, "TOTK_ADPF=full");
+        if (get("pcache_stats").equals("on")) line(out, "TOTK_PCACHE_STATS=1");
         if (!get("render_res").equals("game")) line(out, "TOTK_RENDER_RES=" + get("render_res"));
         if (!framegen) line(out, "TOTK_ACQUIRE_SLACK=" + Arrays.asList("responsive", "balanced", "smoothest").indexOf(get("latency")));
         String upscaler = get("upscaler");

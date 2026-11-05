@@ -132,6 +132,7 @@ public final class TotkActivity extends NativeActivity {
     }
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
+        applyRefreshPreference(); // NativeActivity already read settings.env; window preference is additional.
         // NativeActivity synchronously loads totk.env in ANativeActivity_onCreate.
         // Query only after super, before constructing a controller or display listener.
         // The companion art is generated on the device by the optional setup stage; without it the companion stays off.
@@ -204,6 +205,21 @@ public final class TotkActivity extends NativeActivity {
                 Log.w("TotkTouch", "Controller panel detach failed", problem);
             }
             touchPanelAttached = false;
+        }
+    }
+
+    /** Window-level fallback for game SurfaceControl / native-window rate requests.
+     * Applied once on Activity startup, never repeatedly on each touch/frame.
+     * The Android compositor can still choose another refresh rate.
+     */
+    private void applyRefreshPreference() {
+        String value = getSharedPreferences("settings", MODE_PRIVATE).getString("refresh_hint", "60");
+        float preferred = "60".equals(value) ? 60f : 0f;
+        WindowManager.LayoutParams params = getWindow().getAttributes();
+        if (params.preferredRefreshRate != preferred) {
+            params.preferredRefreshRate = preferred;
+            getWindow().setAttributes(params);
+            Log.i("TotkRefresh", "Activity preference " + preferred + " Hz (request only)");
         }
     }
 

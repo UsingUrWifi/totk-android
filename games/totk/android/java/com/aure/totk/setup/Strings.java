@@ -126,12 +126,14 @@ final class Strings {
             case "frame_gen": return "Frame generation";
             case "render_res": return "Render resolution";
             case "latency": return "Latency";
+            case "perf_hints": return "CPU performance hints";
             case "upscaler": return "Upscaler";
             case "sharpness_fsr": case "sharpness_sgsr": return "Sharpness";
             case "aa": return "Anti-aliasing";
             case "shadows": return "Shadows";
             case "console_mode": return "Console mode";
             case "native_hud": return "Native HUD";
+            case "refresh_hint": return "Display refresh";
             case "overlay": return "Performance overlay";
             case "overlay_pos": return "Overlay position";
             case "second_screen": return "Second screen";
@@ -139,6 +141,7 @@ final class Strings {
             case "audio_latency": return "Audio latency";
             case "game_language": return "Game language";
             case "rumble": return "Rumble";
+            case "pcache_stats": return "Pipeline cache logging";
             case "motion": return "Motion controls";
             default: return key;
         }
@@ -149,12 +152,14 @@ final class Strings {
             case "frame_gen": return "Shows an extra picture between two real ones";
             case "render_res": return "Size of the 3D scene before upscaling";
             case "latency": return "Responsive · Balanced · Smoothest";
+            case "perf_hints": return "Current or experimental all-thread Android performance hints";
             case "upscaler": return "Off · FSR 1 · Snapdragon GSR";
             case "sharpness_fsr": case "sharpness_sgsr": return "Applies to the upscaler";
             case "aa": return "Smooths jagged edges";
             case "shadows": return "Lower saves GPU time in busy areas";
             case "console_mode": return "Docked uses the game's larger TV resolution";
             case "native_hud": return "Draws menus and text at the panel's own resolution";
+            case "refresh_hint": return "Prefer 60 Hz during play · or let Android choose";
             case "overlay": return "Frame rate and frame time while you play";
             case "overlay_pos": return "Corner of the screen";
             case "second_screen": return "Map, inventory and shortcuts on the lower display";
@@ -162,6 +167,7 @@ final class Strings {
             case "audio_latency": return "Low · Balanced · Safe";
             case "game_language": return "Text and voices in the game";
             case "rumble": return "Vibration strength · Off";
+            case "pcache_stats": return "Log Vulkan pipeline cache saves and pauses; troubleshooting only";
             case "motion": return "Aiming by tilting the device or controller";
             default: return "";
         }
@@ -176,6 +182,9 @@ final class Strings {
                     + "and softer. Game default lets the game choose, as on the console.";
             case "latency": return "How many finished pictures may wait for the screen. Responsive shows each one as soon as possible; "
                     + "Smoothest keeps one more in reserve to hide uneven frames, at up to one more frame of input delay.";
+            case "perf_hints": return "Current keeps the existing single render-thread Android performance session. Experimental full "
+                    + "adds critical native game, renderer, and pipeline threads to an Android performance hint session when the device supports it. "
+                    + "May help or hurt. Change one setting at a time and compare matched scenes.";
             case "upscaler": return "How the picture is enlarged to the screen. FSR 1 is AMD's edge-aware upscaler; Snapdragon GSR is "
                     + "Qualcomm's, made for Adreno GPUs. Off uses plain filtering.";
             case "sharpness_fsr": case "sharpness_sgsr": return "How much detail the upscaler restores after enlarging the picture. Too high "
@@ -188,6 +197,9 @@ final class Strings {
                     + "connected to a TV: it draws at its larger docked resolution and needs more GPU time.";
             case "native_hud": return "Draws the game's menus, map and text at the screen's own resolution instead of enlarging them "
                     + "from the game's size, so text is sharper. Handheld only: docked mode always uses the game's HUD.";
+            case "refresh_hint": return "Auto leaves the system's refresh selection alone. Prefer 60 Hz tells Android that "
+                    + "this game wants a 60 Hz display mode during play. The native Vulkan surface also requests 60 Hz using game "
+                    + "frame-rate compatibility. Some phones may ignore the request; it does not guarantee a locked refresh or 60 fps.";
             case "overlay": return "A small readout in the corner of the screen. “FPS” shows the frame rate only; “Full” adds frame time, "
                     + "the render and output resolution, the upscaler and a frame-time graph.";
             case "overlay_pos": return "Which corner of the screen the performance overlay sits in.";
@@ -199,6 +211,9 @@ final class Strings {
                     + "systems and wireless headphones.";
             case "game_language": return "The language of the game's text and voices. Device language follows this device's first "
                     + "language when the game has it, and falls back to English otherwise.";
+            case "pcache_stats": return "For a controlled stutter test, log cache extraction timing, saved sizes and "
+                    + "pipeline-cache decisions in the game's totk.log. It does not erase, reset, or disable the existing cache, "
+                    + "which is already persistent and asynchronous. Leave off for normal play.";
             case "rumble": return "The game's rumble on the controller's motors when it has its own, otherwise on this device's "
                     + "vibration motor. Off gives the game no rumble at all.";
             case "motion": return "The game's motion controls (aiming the bow, some puzzles) from the controller's gyroscope when it "
@@ -209,6 +224,9 @@ final class Strings {
     static String valueName(String key, String value) {
         switch (key) {
             case "frame_rate": return value + " fps";
+            case "refresh_hint": return value.equals("60") ? "Prefer 60 Hz" : "System auto";
+            case "perf_hints": return value.equals("full") ? "Full (test)" : "Current";
+            case "pcache_stats": return value.equals("on") ? "On" : "Off";
             case "frame_gen": return value.equals("on") ? "Interpolation" : "Off";
             case "render_res": return value.equals("game") ? "Game default" : value.replace("x", " × ");
             case "upscaler": return upscalerName(value);

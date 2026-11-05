@@ -1261,10 +1261,10 @@ public final class SetupActivity extends Activity implements SetupService.Listen
         Widgets.Panel list = panel(80, listTop, 1040, 906 - listTop, false, 28, 28);
         List<String> keys = new ArrayList<>();
         switch (tab) {
-            case Settings.PERFORMANCE: keys.addAll(Arrays.asList("frame_rate", "frame_gen", "render_res", "latency")); break;
+            case Settings.PERFORMANCE: keys.addAll(Arrays.asList("frame_rate", "frame_gen", "render_res", "latency", "perf_hints")); break;
             case Settings.PICTURE: keys.addAll(Arrays.asList("upscaler", "sharpness", "aa", "shadows")); break;
             default:
-                keys.addAll(Arrays.asList("console_mode", "native_hud", "overlay", "overlay_pos"));
+                keys.addAll(Arrays.asList("console_mode", "native_hud", "refresh_hint", "overlay", "overlay_pos"));
                 if (SettingsStore.secondaryDisplay(this)) keys.add("second_screen");
         }
         for (String key : keys) settingRow(list, key);
@@ -1285,7 +1285,7 @@ public final class SetupActivity extends Activity implements SetupService.Listen
     private void controls() {
         header("controls", Strings.CONTROLS, 0, null);
         Widgets.Panel list = panel(80, 186, 1040, 720, false, 28, 28);
-        for (String key : new String[]{"buttons", "rumble", "motion", "audio_latency", "game_language"}) settingRow(list, key);
+        for (String key : new String[]{"buttons", "rumble", "motion", "audio_latency", "game_language", "pcache_stats"}) settingRow(list, key);
         detailPanel();
         primary = settingRows.get("buttons");
         refreshSettings();
