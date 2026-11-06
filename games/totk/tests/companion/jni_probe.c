@@ -62,6 +62,18 @@ void runtime_android_motion(JNIEnv *env, jclass cls, jfloat ax, jfloat ay, jfloa
 }
 void runtime_android_motion_live(JNIEnv *env, jclass cls, jboolean on, jstring source) { (void)env; (void)cls; (void)on; (void)source; }
 jint runtime_android_feedback_enabled(JNIEnv *env, jclass cls) { (void)env; (void)cls; return 0; }
+/* Touchscreen and Vulkan diagnostics added to the production activity.
+ * The companion-only host probe does not simulate the game input/render loop. */
+void runtime_android_touch_input(JNIEnv *env, jclass cls, jlong buttons, jint lx, jint ly, jint rx, jint ry) {
+    (void)env; (void)cls; (void)buttons; (void)lx; (void)ly; (void)rx; (void)ry;
+}
+jstring runtime_android_stutter_excerpt(JNIEnv *env, jclass cls) {
+    (void)cls;
+    return (*env)->NewStringUTF(env, "");
+}
+void vk_overlay_handoff_totals(uint32_t *total, uint32_t *real) { *total = 0; *real = 0; }
+int vk_overlay_mode(void) { return 0; }
+int vk_overlay_cycle(void) { return 0; }
 /* companion_actions.c and its runtime hooks: only counted, the fixture never runs a frame end */
 _Atomic int runtime_companion_pending;
 void (*_Atomic runtime_companion_tick)(uint64_t frame);

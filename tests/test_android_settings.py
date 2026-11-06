@@ -119,7 +119,10 @@ class SettingsTests(unittest.TestCase):
         for preset, before in LEGACY_PRESET_ENV.items():
             with self.subTest(preset=preset):
                 actual = self.run_probe(f'envpreset {preset} en-GB')[0].replace('|', '\n')
-                self.assertEqual(actual, before)
+                # The touchscreen branch defaults to a 60 Hz request. It adds
+                # exactly one line; all historical 1.0.1 preset bytes remain fixed.
+                self.assertEqual(actual.count('TOTK_FRAME_RATE_HINT=60\n'), 1)
+                self.assertEqual(actual.replace('TOTK_FRAME_RATE_HINT=60\n', ''), before)
                 for soc in ('QCS8550', 'CQ7790S'):
                     self.assertEqual(self.run_probe(f'envsocpreset {preset} {soc} en-GB')[0].replace('|', '\n'), before)
                 for feed in ('off', 'on'):

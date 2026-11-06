@@ -200,6 +200,10 @@ class GameDisplayTests(unittest.TestCase):
         methods = methods.replace('private static Display builtInDisplay', 'static Display builtInDisplay')
         activity = (JAVA / 'TotkActivity.java').read_text()
         callbacks = section(activity, '    private void ensureMainDisplay()', '    @Override protected void onResume()').replace('com.aure.totk.setup.SetupActivity', 'SetupActivity')
+        # The display-routing probe has no Android touch panel; retain the
+        # routing decisions and omit only overlay lifecycle calls from its slice.
+        callbacks = callbacks.replace('            hideTouchPanel();\n', '')
+        callbacks = callbacks.replace('            scheduleTouchPanel();\n', '')
         source = (FRAMEWORK + local_class((JAVA / 'companion/DisplayClass.java').read_text(), 'DisplayClass')
                   + local_class((JAVA / 'GameLaunch.java').read_text(), 'GameLaunch')
                   + 'class PresentationController { int changed; void onDisplayChanged(int id) { changed++; }\n'

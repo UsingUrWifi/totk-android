@@ -191,6 +191,76 @@ public final class JSONObject {
 }
 
 
+# Touch-enabled TotkActivity uses a second, activity-owned panel. These host
+# doubles cover declarations only: the companion test never creates a panel.
+# The real Android SDK build separately compiles TouchControlsView itself.
+STUBS.update({
+    'android/os/IBinder.java': 'package android.os; public interface IBinder {}',
+    'android/graphics/PixelFormat.java': '''package android.graphics;
+public final class PixelFormat { public static final int TRANSLUCENT = -3; }''',
+    'android/view/Gravity.java': '''package android.view;
+public final class Gravity { public static final int TOP = 48, START = 8388611; }''',
+    'android/view/WindowManager.java': '''package android.view;
+public final class WindowManager {
+    public static final class LayoutParams {
+        public static final int MATCH_PARENT = -1, TYPE_APPLICATION_PANEL = 1000;
+        public static final int FLAG_NOT_FOCUSABLE = 8, FLAG_NOT_TOUCH_MODAL = 32;
+        public static final int FLAG_LAYOUT_IN_SCREEN = 256, FLAG_FULLSCREEN = 1024;
+        public android.os.IBinder token;
+        public int gravity;
+        public float preferredRefreshRate;
+        public LayoutParams() {}
+        public LayoutParams(int w, int h, int type, int flags, int format) {}
+        public void setTitle(String title) {}
+    }
+    public void addView(View view, LayoutParams params) {}
+    public void removeViewImmediate(View view) {}
+}''',
+    'android/util/DisplayMetrics.java': '''package android.util;
+public final class DisplayMetrics { public int widthPixels = 1080, heightPixels = 2400; }''',
+    'android/content/res/Resources.java': '''package android.content.res;
+public final class Resources {
+    public android.util.DisplayMetrics getDisplayMetrics() { return new android.util.DisplayMetrics(); }
+}''',
+    'android/content/SharedPreferences.java': '''package android.content;
+public interface SharedPreferences { String getString(String key, String fallback); }''',
+    'android/content/Context.java': '''package android.content;
+public class Context {
+    public static final int MODE_PRIVATE = 0;
+    public void startActivity(Intent intent) { throw new AssertionError("the probe reports no game error"); }
+    public SharedPreferences getSharedPreferences(String name, int mode) { return (key, fallback) -> fallback; }
+    public android.content.res.Resources getResources() { return new android.content.res.Resources(); }
+    public android.view.WindowManager getWindowManager() { return new android.view.WindowManager(); }
+}''',
+    'android/util/Log.java': '''package android.util;
+public final class Log {
+    public static int w(String tag, String message) { return 0; }
+    public static int w(String tag, String message, Throwable error) { return 0; }
+    public static int i(String tag, String message) { return 0; }
+    public static int e(String tag, String message, Throwable error) { return 0; }
+}''',
+    'android/view/View.java': '''package android.view;
+public class View {
+    public boolean isAttachedToWindow() { return false; }
+    public AttachedSurfaceControl getRootSurfaceControl() { return null; }
+    public android.os.IBinder getWindowToken() { return null; }
+    public Object getParent() { return null; }
+    public boolean post(Runnable job) { return true; }
+}''',
+    'android/view/Window.java': '''package android.view;
+public class Window {
+    public View getDecorView() { return new View(); }
+    public WindowManager.LayoutParams getAttributes() { return new WindowManager.LayoutParams(); }
+    public void setAttributes(WindowManager.LayoutParams params) {}
+}''',
+    'com/aure/totk/TouchControlsView.java': '''package com.aure.totk;
+public final class TouchControlsView extends android.view.View {
+    public TouchControlsView(android.content.Context context) {}
+    public void resetInput() {}
+}''',
+})
+
+
 @unittest.skipUnless(sys.platform.startswith('linux'), 'host JNI bridge fixture needs Linux')
 class CompanionGate(unittest.TestCase):
     @classmethod
