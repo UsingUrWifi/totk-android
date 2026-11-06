@@ -56,12 +56,12 @@ jobs:
           set -euo pipefail
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends git make cmake ninja-build pkg-config \
-            clang lld llvm rsync unzip zlib1g-dev libssl-dev libunwind-dev
+            clang lld llvm rsync unzip zlib1g-dev libssl-dev libunwind-dev libvulkan-dev
           yes | sdkmanager --licenses >/dev/null || true
           sdkmanager --install 'platforms;android-35' 'build-tools;35.0.0' 'ndk;28.2.13676358'
           test -f "$ANDROID_HOME/ndk/28.2.13676358/source.properties"
           python -m pip install --upgrade pip
-          python -m pip install 'cryptography==50.0.2'
+          python -m pip install 'cryptography==50.0.2' 'Pillow==11.3.0'
           dotnet --version
 
       - name: Run source tests before compilation
