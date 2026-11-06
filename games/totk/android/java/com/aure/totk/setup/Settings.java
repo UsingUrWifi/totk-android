@@ -38,6 +38,10 @@ final class Settings {
         new Option("render_res", PERFORMANCE, "game", "game", "1280x720", "1152x648", "960x540"),
         new Option("latency", PERFORMANCE, "balanced", "responsive", "balanced", "smoothest"),
         new Option("gpu_feed", PERFORMANCE, "off", "off", "on"),
+        new Option("perf_hints", PERFORMANCE, "legacy", "legacy", "full"),
+        new Option("priority30", PERFORMANCE, "off", "off", "on"),
+        new Option("shadow_passes", PICTURE, "4", "4", "3", "2"),
+        new Option("far_clamp", PICTURE, "auto", "auto", "1000", "500", "200"),
         new Option("upscaler", PICTURE, "off", "off", "fsr", "sgsr"),
         new Option("sharpness_fsr", PICTURE, "20"),
         new Option("sharpness_sgsr", PICTURE, "50"),
@@ -45,12 +49,15 @@ final class Settings {
         new Option("shadows", PICTURE, "high", "high", "medium", "low"),
         new Option("console_mode", SCREEN, "handheld", "handheld", "docked"),
         new Option("native_hud", SCREEN, "off", "off", "on"),
+        new Option("refresh_hint", SCREEN, "60", "auto", "60"),
         new Option("overlay", SCREEN, "off", "off", "fps", "full"),
         new Option("overlay_pos", SCREEN, "tr", "tl", "tr", "bl", "br"),
         new Option("second_screen", SCREEN, "on", "off", "on"),
         new Option("buttons", CONTROLS, "nintendo", "nintendo", "xbox"),
         new Option("audio_latency", CONTROLS, "balanced", "low", "balanced", "safe"),
         new Option("rumble", CONTROLS, "100", "0", "25", "50", "75", "100"),
+        new Option("pcache_stats", CONTROLS, "off", "off", "on"),
+        new Option("stutter_trace", CONTROLS, "off", "off", "on"),
         new Option("motion", CONTROLS, "on", "on", "off"),
         new Option("game_language", CONTROLS, "auto", LANGUAGES),
     };
@@ -84,6 +91,7 @@ final class Settings {
         if ("on".equals(get("frame_gen"))) values.put("frame_rate", "30");
         // 1.0.0/1.0.1 had no gpu_feed key. Only a missing key adopts the chip default; explicit choices win.
         if (stored == null || !stored.containsKey("gpu_feed")) values.put("gpu_feed", gpuFeedDefault(soc));
+        if ("on".equals(get("priority30"))) applyPriority30();
     }
     /** The first launch: shipping defaults with the profile for this chip (profile(soc)). */
     static Settings firstRun(String soc) {
@@ -102,10 +110,47 @@ final class Settings {
 
     /** Set one option, then apply the rules that tie options together: 60 fps turns frame generation off, frame
      * generation needs 30 fps. Invalid values are ignored. */
+    /** Visual-correctness-first real-30 priority, not a minimum-FPS claim.
+     * Retains game shadow, camera and FXAA behaviour; only the scene resolution
+     * is lowered. No Vulkan synchronization or driver change is implied. */
+    private void applyPriority30() {
+        values.put("frame_rate", "30");
+        values.put("frame_gen", "off");
+        values.put("render_res", "960x540");
+        values.put("latency", "balanced");
+        values.put("upscaler", "off");
+        // Original shadow cascade coverage, native map sizes and game FXAA:
+        // two cascades/256px maps/disabled AA can shimmer or lose shadows.
+        // The 30 FPS optimization here is reduced scene pixels, not shadow loss.
+        values.put("aa", "fxaa");
+        values.put("shadows", "high");
+        values.put("shadow_passes", "4");
+        // Clear a stale experimental camera cap from an older saved profile.
+        // Horizon, streaming and draw distance are not reduced automatically.
+        values.put("far_clamp", "auto");
+        values.put("refresh_hint", "60");
+        values.put("stutter_trace", "off");
+        values.put("pcache_stats", "off");
+        // No per-frame diagnostic tracing during normal gameplay; reenable only for an audit.
+        // Preserve the user's CPU-hints choice; switching to Full is a separate A/B test.
+    }
+    /** Manual performance changes leave the chosen values in place but relinquish the
+     * priority label. This avoids an invisible governor overriding later player changes. */
+    private static boolean priority30Controls(String key) {
+        switch (key) {
+            case "frame_rate": case "frame_gen": case "render_res": case "latency":
+            case "upscaler": case "aa": case "shadows": case "shadow_passes":
+            case "far_clamp": case "refresh_hint": return true;
+            default: return false;
+        }
+    }
     void set(String key, String value) {
         Option option = option(key);
         if (!option.valid(value)) return;
+        if ("on".equals(values.get("priority30")) && priority30Controls(key) &&
+                !value.equals(values.get(key))) values.put("priority30", "off");
         values.put(key, value);
+        if (key.equals("priority30") && value.equals("on")) { applyPriority30(); return; }
         if (key.equals("frame_rate") && value.equals("60")) values.put("frame_gen", "off");
         if (key.equals("frame_gen") && value.equals("on")) values.put("frame_rate", "30");
     }
@@ -143,6 +188,10 @@ final class Settings {
     void applyPreset(String name) {
         int preset = Arrays.asList(PRESETS).indexOf(name);
         if (preset < 0) return;
+        // The new caster reduction is part of Priority30, not a hidden
+        // override after selecting an ordinary preset.
+        if ("on".equals(get("priority30"))) values.put("shadow_passes", "4");
+        values.put("priority30", "off"); // Explicit preset selection leaves priority mode.
         for (int k = 0; k < PRESET_KEYS.length; k++) if (PRESET_VALUES[preset][k] != null) values.put(PRESET_KEYS[k], PRESET_VALUES[preset][k]);
     }
     /** One preset value (for the card captions), or null when the preset leaves it alone. */
@@ -188,6 +237,9 @@ final class Settings {
     static boolean profileKnown(String soc) { return socClass(soc) != null; }
     /** Y on a tab: the device's default values for that tab (the profile's preset for Performance and Picture). */
     void defaults(String tab, String soc) {
+        if ("on".equals(get("priority30")) &&
+                (tab.equals(PERFORMANCE) || tab.equals(PICTURE))) values.put("shadow_passes", "4");
+        if (tab.equals(PERFORMANCE) || tab.equals(PICTURE)) values.put("priority30", "off");
         for (Option option : OPTIONS) if (option.tab.equals(tab)) values.put(option.key, option.fallback);
         if (tab.equals(PERFORMANCE) || tab.equals(PICTURE)) {
             int p = Arrays.asList(PRESETS).indexOf(profile(soc));
@@ -220,7 +272,17 @@ final class Settings {
                 line(out, "TOTK_ADPF_GPU=1");
             }
         }
+        // Test-build preference: 60Hz remains a request, not a display lock.
+        // It is independent of 30fps game simulation and frame-generation mode.
+        if (get("refresh_hint").equals("60")) line(out, "TOTK_FRAME_RATE_HINT=60");
+        if (get("perf_hints").equals("full")) line(out, "TOTK_ADPF=full");
+        if (get("pcache_stats").equals("on")) line(out, "TOTK_PCACHE_STATS=1");
+        if (get("stutter_trace").equals("on")) line(out, "TOTK_VK_HITCH=1");
         if (!get("render_res").equals("game")) line(out, "TOTK_RENDER_RES=" + get("render_res"));
+        // Version 1.4.3 verifies the original instructions before either
+        // rendering reduction is applied. Unset means game-native.
+        if (!get("shadow_passes").equals("4")) line(out, "TOTK_SHADOW_CASCADES=" + get("shadow_passes"));
+        if (!get("far_clamp").equals("auto")) line(out, "TOTK_FAR_CLAMP=" + get("far_clamp"));
         if (!framegen) line(out, "TOTK_ACQUIRE_SLACK=" + Arrays.asList("responsive", "balanced", "smoothest").indexOf(get("latency")));
         String upscaler = get("upscaler");
         line(out, "TOTK_POST_SCALE=" + upscaler);

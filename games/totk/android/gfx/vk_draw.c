@@ -66,6 +66,16 @@ vk_state S;
 static uint64_t g_stat_draws, g_stat_skips[16], g_stat_passes, g_stat_pipes, g_stat_dispatch;
 vk_hitch g_hk;
 int g_hitch_on;
+#ifdef TOTK_ANDROID_APP
+/* Opt-in diagnostic: disabled unless the launcher explicitly writes the flag.
+ * Set before the first guest frame is attributed; no per-frame getenv. */
+static pthread_once_t g_stutter_once = PTHREAD_ONCE_INIT;
+static void stutter_configure(void) {
+    const char *e = getenv("TOTK_VK_HITCH");
+    g_hitch_on = e && !strcmp(e, "1");
+    if (g_hitch_on) LOGV("[stutter] frame attribution enabled for this session; disable after capture to minimize overhead");
+}
+#endif
 /* Per 300 frames: graphics pipeline creation (count, time, longest) and frame times (longest, over 33 / 50 ms): stutter. */
 static uint64_t g_win_pipes, g_win_pipe_ns, g_win_pipe_max_ns, g_win_frame_max_ns, g_win_over33, g_win_over50, g_last_present_ns;
 static uint64_t g_win_sync, g_win_sync_ns, g_win_prewarm_wait, g_win_prewarm_wait_ns;
@@ -10296,7 +10306,7 @@ static void hitch_present(uint64_t now, uint64_t frame) {
     for (int i = 4; i >= 0; i--) if (dt >= thresholds[i]) { bins[i]++; break; }
     if (dt > worst) worst = dt;
     count++; sum += dt;
-    if (dt >= 40000000 && dt / 1e6 >= 2.5 * median && logged < 24) {
+    if (dt >= 50000000ull && dt / 1e6 >= 1.5 * median && logged < 24) {
         logged++;
         LOGV("hitch at frame %llu: +%.1f ms (median %.1f): replay %.1f ms in %llu submits (GPU wait %.1f ms); pipelines %llu (%.1f ms, %llu sync-built, %llu failed, %llu retry, %llu bounded, %llu skipped draws); shader loads %llu (%.0f KiB), variant lists %llu, requests %llu; descriptor pools %llu, chunks %llu, cpu steps %llu; gpu idles %llu (%.1f ms, %llu finishes, %llu flush waits, %llu pool drops); invalidates %llu (%.1f ms, %llu writebacks, %.1f MiB); game waits %llu (%.1f ms); completion %.1f ms, wake %.1f ms",
              (unsigned long long)frame, dt / 1e6, median, v.replay_ns / 1e6, (unsigned long long)v.subs, v.wait_ns / 1e6,
@@ -10321,6 +10331,9 @@ uint64_t mtl_present(const tex_t *t, double period, const int crop[4]) {
 #ifndef TOTK_ANDROID_APP
     (void)period;
 #endif
+#ifdef TOTK_ANDROID_APP
+    pthread_once(&g_stutter_once, stutter_configure);
+#endif
     uint64_t now = host_now_ns(), n = ++g_present_n;
     hitch_present(now, n);
     if (vk_lag_capture_on()) nvn_dirty_lag_frame(n + 1);
@@ -10342,7 +10355,8 @@ uint64_t mtl_present(const tex_t *t, double period, const int crop[4]) {
     { /* a frame over 100 ms: where its time went in the backend; the rest is the game's own work */
       static uint64_t prev[5], prev_pipe, prev_cp, prev_io; static int nlog;
       uint64_t c[5], pipe = g_cum_pipe_ns, cp = vk_compute_pipe_cum_ns(), io = vk_shader_io_cum_ns(); vk_perf_cum(c);
-      if (g_last_present_ns && now - g_last_present_ns > 100000000 && nlog++ < 200)
+      if (g_last_present_ns && (now - g_last_present_ns > 100000000ull ||
+            (g_hitch_on && now - g_last_present_ns >= 50000000ull)) && nlog++ < 200)
           LOGV("long frame %llu: %.0f ms since the last present; recording %.1f ms (pipelines made at the draw %.1f, compute pipelines %.1f, seed files %.1f), "
                "GPU waits while recording %.1f ms, the game's sync waits %.1f ms (%llu), %llu CPU steps", (unsigned long long)n, (now - g_last_present_ns) / 1e6,
                (c[0] - prev[0]) / 1e6, (pipe - prev_pipe) / 1e6, (cp - prev_cp) / 1e6, (io - prev_io) / 1e6, (c[1] - prev[1]) / 1e6, (c[2] - prev[2]) / 1e6,

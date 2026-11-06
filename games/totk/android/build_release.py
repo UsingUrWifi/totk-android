@@ -341,7 +341,9 @@ def package(*, out, dex, libs, translator, turnip, assets, key, key_pass_env=Non
            '--version-code', str(version_code), '--version-name', version_name, '--min-sdk', str(API), '--target-sdk', str(API)]
     cmd += (['--key-pass-env', key_pass_env] if key_pass_env else []) + (['--make-key'] if make_key else [])
     cmd += (['--release'] if release else []) + (['--timestamp', str(timestamp)] if timestamp is not None else [])
-    if os.environ.get('TOTK_TEST_APK') == '1':
+    if os.environ.get('TOTK_TOUCH_TEST_APK') == '1':
+        cmd += ['--package', 'com.aure.totk.touchtest', '--label', 'TotK Native Touch Test']
+    elif os.environ.get('TOTK_TEST_APK') == '1':
         cmd += ['--package', 'com.aure.totk.test', '--label', 'TotK Native Test']
     run(cmd, logs / 'build_apk.log')
     try:

@@ -1,9 +1,9 @@
-name: TotK Android isolated test APK
+name: TotK Android isolated touch APK
 
 on:
   push:
     branches:
-      - exp/totk-upstream-test-apk
+      - exp/totk-upstream-touch
   workflow_dispatch:
 
 permissions:
@@ -29,7 +29,10 @@ jobs:
         run: |
           set -euo pipefail
           git merge-base --is-ancestor 34210734b46ffc340ff61f1304f355bf32271bca HEAD
-          grep -F "if os.environ.get('TOTK_TEST_APK') == '1':" games/totk/android/build_release.py
+          grep -F "if os.environ.get('TOTK_TOUCH_TEST_APK') == '1':" games/totk/android/build_release.py
+          grep -F "nativeTouchInput" games/totk/android/java/com/aure/totk/TotkActivity.java
+          grep -F "runtime_android_touch_input" games/totk/runtime/frontend_android.c
+          grep -F "nativeTouchInput" games/totk/runtime/companion_jni.c
 
       - name: Python 3.12
         uses: actions/setup-python@v5
@@ -98,7 +101,7 @@ jobs:
       - name: Build and audit separate-package APK
         shell: bash
         env:
-          TOTK_TEST_APK: '1'
+          TOTK_TOUCH_TEST_APK: '1'
         run: |
           set -euo pipefail
           mkdir -p dist
@@ -107,22 +110,22 @@ jobs:
             --android-sdk "$ANDROID_HOME" \
             --turnip "$RUNNER_TEMP/pinned-turnip.so" \
             --key "$RUNNER_TEMP/test-signing.pem" \
-            --version-code 10001 --version-name '1.0.1-test-3421073' \
+            --version-code 10001 --version-name '1.0.1-touch-3421073' \
             --jobs 3 --work "$RUNNER_TEMP/totk-build" \
-            -o "$GITHUB_WORKSPACE/dist/TotK-Native-Test-3421073.apk"
-          python games/totk/android/build_release.py --audit dist/TotK-Native-Test-3421073.apk
+            -o "$GITHUB_WORKSPACE/dist/TotK-Native-Touch-3421073.apk"
+          python games/totk/android/build_release.py --audit dist/TotK-Native-Touch-3421073.apk
           "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging \
-            dist/TotK-Native-Test-3421073.apk | tee dist/apk-badging.txt
-          grep -F "package: name='com.aure.totk.test'" dist/apk-badging.txt
-          (cd dist && sha256sum TotK-Native-Test-3421073.apk > TotK-Native-Test-3421073.apk.sha256)
+            dist/TotK-Native-Touch-3421073.apk | tee dist/apk-badging.txt
+          grep -F "package: name='com.aure.totk.touchtest'" dist/apk-badging.txt
+          (cd dist && sha256sum TotK-Native-Touch-3421073.apk > TotK-Native-Touch-3421073.apk.sha256)
 
       - name: Upload test APK and checksum only
         uses: actions/upload-artifact@v4
         with:
-          name: TotK-Native-Test-3421073
+          name: TotK-Native-Touch-3421073
           path: |
-            dist/TotK-Native-Test-3421073.apk
-            dist/TotK-Native-Test-3421073.apk.sha256
+            dist/TotK-Native-Touch-3421073.apk
+            dist/TotK-Native-Touch-3421073.apk.sha256
             dist/apk-badging.txt
           if-no-files-found: error
           retention-days: 7

@@ -18,7 +18,8 @@ ALLOWED = {'TOTK_FPS60', 'TOTK_GPU_TIME', 'TOTK_FRAMEGEN', 'TOTK_REALTIME', 'TOT
            'TOTK_POST_SGSR_SHARPNESS', 'TOTK_FXAA', 'TOTK_POST_AA', 'TOTK_SHADOW_RES', 'TOTK_OPERATION_MODE',
            'TOTK_NATIVE_UI', 'TOTK_OVERLAY', 'TOTK_OVERLAY_POS', 'TOTK_COMPANION', 'TOTK_FACE_BUTTONS',
            'TOTK_AUDIO_PREFILL_MS', 'TOTK_LOCALE', 'TOTK_LANG', 'TOTK_DATA_DIR', 'TOTK_RUMBLE', 'TOTK_RUMBLE_GAIN', 'TOTK_GYRO',
-           'TOTK_AUTOLOAD', 'TOTK_VK_SPLIT_PASS_DRAWS', 'TOTK_ADPF_GPU'}
+           'TOTK_AUTOLOAD', 'TOTK_VK_SPLIT_PASS_DRAWS', 'TOTK_ADPF_GPU',
+           'TOTK_FRAME_RATE_HINT', 'TOTK_ADPF', 'TOTK_PCACHE_STATS', 'TOTK_VK_HITCH', 'TOTK_SHADOW_CASCADES', 'TOTK_FAR_CLAMP'}
 FRONTEND = TOTK / 'runtime/frontend_android.c'
 FRAMEGEN = ['TOTK_FPS60=0', 'TOTK_FRAMEGEN=locked', 'TOTK_REALTIME=1', 'TOTK_FRAME_LAG=0', 'TOTK_FPS_AUTO=0', 'DM_PRESENT_HZ=60',
             'DM_PRESENT_INTERVAL=game', 'TOTK_PRESENT_SLOTS=1', 'TOTK_VK_PRESENT=ahb', 'TOTK_ACQUIRE_SLACK=0',
@@ -81,7 +82,7 @@ class SettingsTests(unittest.TestCase):
 
     def test_default_env_is_the_shipping_behaviour(self):
         self.assertEqual(self.env(), [
-            'TOTK_FPS60=0', 'TOTK_ACQUIRE_SLACK=1', 'TOTK_POST_SCALE=off', 'TOTK_OPERATION_MODE=handheld', 'TOTK_NATIVE_UI=0',
+            'TOTK_FPS60=0', 'TOTK_FRAME_RATE_HINT=60', 'TOTK_ACQUIRE_SLACK=1', 'TOTK_POST_SCALE=off', 'TOTK_OPERATION_MODE=handheld', 'TOTK_NATIVE_UI=0',
             'TOTK_OVERLAY=off', 'TOTK_OVERLAY_POS=tr', 'TOTK_COMPANION=1', 'TOTK_FACE_BUTTONS=label', 'TOTK_AUDIO_PREFILL_MS=20',
             'TOTK_RUMBLE=1', 'TOTK_RUMBLE_GAIN=1.0', 'TOTK_GYRO=1', 'TOTK_LOCALE=en-GB'])
 
@@ -90,7 +91,7 @@ class SettingsTests(unittest.TestCase):
                        aa='smaa', shadows='low', console_mode='docked', native_hud='on', overlay='full', overlay_pos='bl',
                        second_screen='off', buttons='xbox', audio_latency='safe', rumble='50', motion='off', game_language='pt-BR')
         self.assertEqual(env, [
-            'TOTK_FPS60=1', 'TOTK_GPU_TIME=hardware', 'TOTK_RENDER_RES=960x540', 'TOTK_ACQUIRE_SLACK=2', 'TOTK_POST_SCALE=fsr', 'TOTK_POST_SHARPNESS=0.35',
+            'TOTK_FPS60=1', 'TOTK_GPU_TIME=hardware', 'TOTK_FRAME_RATE_HINT=60', 'TOTK_RENDER_RES=960x540', 'TOTK_ACQUIRE_SLACK=2', 'TOTK_POST_SCALE=fsr', 'TOTK_POST_SHARPNESS=0.35',
             'TOTK_FXAA=0', 'TOTK_POST_AA=smaa', 'TOTK_SHADOW_RES=256', 'TOTK_OPERATION_MODE=docked', 'TOTK_NATIVE_UI=1',
             'TOTK_OVERLAY=full', 'TOTK_OVERLAY_POS=bl', 'TOTK_COMPANION=0', 'TOTK_FACE_BUTTONS=position',
             'TOTK_AUDIO_PREFILL_MS=40', 'TOTK_RUMBLE=1', 'TOTK_RUMBLE_GAIN=0.5', 'TOTK_GYRO=0', 'TOTK_LANG=pt-BR'])
@@ -130,6 +131,10 @@ class SettingsTests(unittest.TestCase):
         self.assertEqual((duo['frame_rate'], duo['gpu_feed']), ('60', 'off'))
         odin = self.values(self.run_probe('applysoc light CQ8725S')[0])
         self.assertEqual((odin['frame_rate'], odin['gpu_feed']), ('30', 'on'))
+    def test_opt_in_stutter_capture(self):
+        self.assertNotIn("TOTK_VK_HITCH=1", self.env())
+        self.assertIn("TOTK_VK_HITCH=1", self.env(stutter_trace="on"))
+        self.assertNotIn("TOTK_VK_HITCH=1", self.env(stutter_trace="invalid"))
 
     def test_rumble_strength_and_motion(self):
         off = self.env(rumble='0')

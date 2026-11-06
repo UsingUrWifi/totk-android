@@ -22,7 +22,7 @@
 static pthread_once_t config_once = PTHREAD_ONCE_INIT;
 static pthread_mutex_t mu = PTHREAD_MUTEX_INITIALIZER;
 static pthread_key_t thread_key;
-static int mode, rate_on, fps60, framegen, lattice, registry_dirty, key_ready;
+static int mode, rate_on, prefer60, fps60, framegen, lattice, registry_dirty, key_ready;
 static int (*window_rate)(ANativeWindow *, float, int8_t);
 static void (*surface_rate)(ASurfaceTransaction *, ASurfaceControl *, float, int8_t, int8_t);
 static totk_adpf_api api;
@@ -98,7 +98,10 @@ static void configure(void) {
     double ms = target && *target ? atof(target) : 33.3;
     legacy_target = ms > 0 && ms < 1000 ? (int64_t)(ms * 1e6) : 0;
     if (mode == 1 && !legacy_target) mode = 0;
-    rate_on = is_one("TOTK_FRAME_RATE_HINT"); fps60 = is_one("TOTK_FPS60");
+    const char *rate = getenv("TOTK_FRAME_RATE_HINT");
+    prefer60 = rate && !strcmp(rate, "60");
+    rate_on = prefer60 || is_one("TOTK_FRAME_RATE_HINT");
+    fps60 = is_one("TOTK_FPS60");
     span_applied = span_launch = is_one("TOTK_ADPF_GPU");
     load_applied = load_launch = is_one("TOTK_ADPF_LOAD_HINT");
     cpu_split_applied = cpu_split_launch = is_one("TOTK_ADPF_CPU_SPLIT");
@@ -117,7 +120,7 @@ static void configure(void) {
     const char *pace = getenv("TOTK_PACE"), *slack = getenv("TOTK_ACQUIRE_SLACK");
     lattice |= pace && !strcmp(pace, "display");
     lattice |= slack && strcmp(slack, "0");
-    atomic_store_explicit(&content_rate, totk_frame_rate(fps60 ? 60 : 30, framegen, lattice), memory_order_relaxed);
+    atomic_store_explicit(&content_rate, prefer60 ? 60 : totk_frame_rate(fps60 ? 60 : 30, framegen, lattice), memory_order_relaxed);
     const char *hold = getenv("TOTK_RATE_HINT_HOLD");
     while (hold && isspace((unsigned char)*hold)) hold++;
     if (hold && *hold && !totk_live_decimal(hold, 0, 60000, &hold_launch)) {
@@ -136,7 +139,7 @@ static void configure(void) {
     if (rate_on) {
         window_rate = lib ? dlsym(lib, "ANativeWindow_setFrameRate") : NULL;
         surface_rate = lib ? dlsym(lib, "ASurfaceTransaction_setFrameRate") : NULL;
-        fprintf(stderr, "[totk-perf] rate hint support: window=%s surface=%s; FIXED_SOURCE; %uHz%s\n",
+        fprintf(stderr, "[totk-perf] rate hint support: window=%s surface=%s; DEFAULT_GAME; %uHz%s\n",
             window_rate ? "yes" : "no", surface_rate ? "yes" : "no", atomic_load(&content_rate),
             lattice && !fps60 && !framegen ? " (30fps content, retaining 60Hz present lattice)" : "");
     }
@@ -330,6 +333,7 @@ static void rate_frame(int guest_interval, int64_t target) {
         hz = totk_rate_hold_step(&rate_hold, totk_output_rate(guest_interval, generating, lattice),
             mono_ns(), (uint64_t)hold_ms * 1000000);
     }
+    if (prefer60) hz = 60;
     atomic_store_explicit(&content_rate, hz, memory_order_relaxed);
 }
 void totk_perf_frame(uint64_t now, uint64_t period, uint64_t pacing, int guest_interval) {
@@ -420,15 +424,15 @@ unsigned totk_perf_rate(void) {
 void totk_perf_window(ANativeWindow *window) {
     unsigned hz = totk_perf_rate();
     if (!hz || !window) return;
-    int result = window_rate ? window_rate(window, (float)hz, ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_FIXED_SOURCE) : -1;
-    fprintf(stderr, "[totk-perf] window frame-rate hint=%u FIXED_SOURCE result=%d (request, not observed mode)\n", hz, result);
+    int result = window_rate ? window_rate(window, (float)hz, ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT) : -1;
+    fprintf(stderr, "[totk-perf] window frame-rate hint=%u DEFAULT_GAME result=%d (request, not observed mode)\n", hz, result);
 }
 void totk_perf_surface(ASurfaceTransaction *tx, ASurfaceControl *surface) {
     unsigned hz = totk_perf_rate();
     if (!hz || !surface || !tx) return;
     /* Only seamless switches: a rate request must not black-screen mid-play. */
-    if (surface_rate) surface_rate(tx, surface, (float)hz, ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_FIXED_SOURCE, 0);
-    fprintf(stderr, "[totk-perf] SurfaceControl frame-rate hint=%u FIXED_SOURCE seamless-only %s (void API; not mode proof)\n",
+    if (surface_rate) surface_rate(tx, surface, (float)hz, ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT, 0);
+    fprintf(stderr, "[totk-perf] SurfaceControl frame-rate hint=%u DEFAULT_GAME seamless-only %s (void API; not mode proof)\n",
         hz, surface_rate ? "staged" : "unavailable");
 }
 #endif

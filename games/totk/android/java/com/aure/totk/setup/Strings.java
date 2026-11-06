@@ -128,12 +128,17 @@ final class Strings {
             case "render_res": return "Render resolution";
             case "latency": return "Latency";
             case "gpu_feed": return "Keep the GPU busy";
+            case "perf_hints": return "CPU performance hints";
+            case "priority30": return "30 FPS priority";
             case "upscaler": return "Upscaler";
             case "sharpness_fsr": case "sharpness_sgsr": return "Sharpness";
             case "aa": return "Anti-aliasing";
             case "shadows": return "Shadows";
+            case "shadow_passes": return "Directional shadow passes";
+            case "far_clamp": return "Distant scenery";
             case "console_mode": return "Console mode";
             case "native_hud": return "Native HUD";
+            case "refresh_hint": return "Display refresh";
             case "overlay": return "Performance overlay";
             case "overlay_pos": return "Overlay position";
             case "second_screen": return "Second screen";
@@ -141,6 +146,8 @@ final class Strings {
             case "audio_latency": return "Audio latency";
             case "game_language": return "Game language";
             case "rumble": return "Rumble";
+            case "pcache_stats": return "Pipeline cache logging";
+            case "stutter_trace": return "Frame stutter trace";
             case "motion": return "Motion controls";
             default: return key;
         }
@@ -152,12 +159,17 @@ final class Strings {
             case "render_res": return "Size of the 3D scene before upscaling";
             case "latency": return "Responsive · Balanced · Smoothest";
             case "gpu_feed": return "Feeds work earlier · more power and heat";
+            case "perf_hints": return "Current or experimental all-thread Android performance hints";
+            case "priority30": return "30 FPS target · original shadows and scenery";
             case "upscaler": return "Off · FSR 1 · Snapdragon GSR";
             case "sharpness_fsr": case "sharpness_sgsr": return "Applies to the upscaler";
             case "aa": return "Smooths jagged edges";
             case "shadows": return "Lower saves GPU time in busy areas";
+            case "shadow_passes": return "Fewer cascades can reduce CPU-side caster draws";
+            case "far_clamp": return "Optional render-camera limit · visible pop-in possible";
             case "console_mode": return "Docked uses the game's larger TV resolution";
             case "native_hud": return "Draws menus and text at the panel's own resolution";
+            case "refresh_hint": return "Prefer 60 Hz during play · or let Android choose";
             case "overlay": return "Frame rate and frame time while you play";
             case "overlay_pos": return "Corner of the screen";
             case "second_screen": return "Map, inventory and shortcuts on the lower display";
@@ -165,6 +177,8 @@ final class Strings {
             case "audio_latency": return "Low · Balanced · Safe";
             case "game_language": return "Text and voices in the game";
             case "rumble": return "Vibration strength · Off";
+            case "stutter_trace": return "Capture 50+ ms frame stalls, shader builds and GPU waits";
+            case "pcache_stats": return "Log Vulkan pipeline cache saves and pauses; troubleshooting only";
             case "motion": return "Aiming by tilting the device or controller";
             default: return "";
         }
@@ -182,6 +196,16 @@ final class Strings {
             case "gpu_feed": return "Sends smaller batches of work to the GPU earlier and asks Android for clocks that keep up. "
                     + "A little more GPU and CPU clock means more power and heat. On by default on devices where it was "
                     + "measured to help (Snapdragon 8 Elite class); has no effect with frame generation.";
+            case "perf_hints": return "Current keeps the existing single render-thread Android performance session. Experimental full "
+                    + "adds critical native game, renderer, and pipeline threads to an Android performance hint session when the device supports it. "
+                    + "May help or hurt. Change one setting at a time and compare matched scenes.";
+            case "priority30": return "Visual-correctness-first real-30 target: 540p scene resolution with the game's "
+                    + "original four shadow cascades, original shadow-map sizing, and FXAA enabled. The full original "
+                    + "draw distance is restored even if a previous session used a camera cap. "
+                    + "No frame generation or extra post upscale; keeps balanced input latency, 60 Hz preference, and "
+                    + "your CPU hint choice. Experimental reduced shadows and distance remain manual Picture options. "
+                    + "This removes known visual compromises, not all possible Turnip/translation flicker. "
+                    + "It does not guarantee 30 fps. Changing an associated setting releases this profile.";
             case "upscaler": return "How the picture is enlarged to the screen. FSR 1 is AMD's edge-aware upscaler; Snapdragon GSR is "
                     + "Qualcomm's, made for Adreno GPUs. Off uses plain filtering.";
             case "sharpness_fsr": case "sharpness_sgsr": return "How much detail the upscaler restores after enlarging the picture. Too high "
@@ -190,10 +214,19 @@ final class Strings {
                     + "textures sharper for a little more GPU time; Off is crispest but shows the steps.";
             case "shadows": return "The resolution of the shadow maps. Lower saves GPU time where many shadows are on screen; their "
                     + "edges get softer and blockier.";
+            case "shadow_passes": return "The original game may use four directional shadow cascades. Three or two caps the "
+                    + "number of caster passes the CPU and GPU record and render, at the cost of distant-shadow quality "
+                    + "and coverage transitions. Requires the game's verified 1.4.3 patch; do not use as a blanket guarantee of 30 fps.";
+            case "far_clamp": return "Optional render-camera far-plane cap in metres. Auto preserves the game's draw distance. "
+                    + "A lower cap can reduce distant draws but may cause obvious scenery/horizon clipping or objects popping in. "
+                    + "Physics, actors and streaming are unchanged. Requires verified game version 1.4.3.";
             case "console_mode": return "Handheld runs the game as on a Switch held in your hands. Docked makes it believe it is "
                     + "connected to a TV: it draws at its larger docked resolution and needs more GPU time.";
             case "native_hud": return "Draws the game's menus, map and text at the screen's own resolution instead of enlarging them "
                     + "from the game's size, so text is sharper. Handheld only: docked mode always uses the game's HUD.";
+            case "refresh_hint": return "Auto leaves the system's refresh selection alone. Prefer 60 Hz tells Android that "
+                    + "this game wants a 60 Hz display mode during play. The native Vulkan surface also requests 60 Hz using game "
+                    + "frame-rate compatibility. Some phones may ignore the request; it does not guarantee a locked refresh or 60 fps.";
             case "overlay": return "A small readout in the corner of the screen. “FPS” shows the frame rate only; “Full” adds frame time, "
                     + "the render and output resolution, the upscaler and a frame-time graph.";
             case "overlay_pos": return "Which corner of the screen the performance overlay sits in.";
@@ -205,6 +238,12 @@ final class Strings {
                     + "systems and wireless headphones.";
             case "game_language": return "The language of the game's text and voices. Device language follows this device's first "
                     + "language when the game has it, and falls back to English otherwise.";
+            case "stutter_trace": return "For a short Fold 5 stutter investigation, record 50 ms+ frame stalls and "
+                    + "native pipeline, shader and GPU-wait timings in totk.log. The PAD Share performance log option "
+                    + "includes a bounded selection of these entries. Adds tracing overhead; leave off for normal play.";
+            case "pcache_stats": return "For a controlled stutter test, log cache extraction timing, saved sizes and "
+                    + "pipeline-cache decisions in the game's totk.log. It does not erase, reset, or disable the existing cache, "
+                    + "which is already persistent and asynchronous. Leave off for normal play.";
             case "rumble": return "The game's rumble on the controller's motors when it has its own, otherwise on this device's "
                     + "vibration motor. Off gives the game no rumble at all.";
             case "motion": return "The game's motion controls (aiming the bow, some puzzles) from the controller's gyroscope when it "
@@ -215,9 +254,15 @@ final class Strings {
     static String valueName(String key, String value) {
         switch (key) {
             case "frame_rate": return value + " fps";
+            case "refresh_hint": return value.equals("60") ? "Prefer 60 Hz" : "System auto";
+            case "perf_hints": return value.equals("full") ? "Full (test)" : "Current";
+            case "priority30": return value.equals("on") ? "On" : "Off";
+            case "pcache_stats": case "stutter_trace": return value.equals("on") ? "On" : "Off";
             case "frame_gen": return value.equals("on") ? "Interpolation" : "Off";
             case "gpu_feed": return value.equals("on") ? "On" : "Off";
             case "render_res": return value.equals("game") ? "Game default" : value.replace("x", " × ");
+            case "shadow_passes": return value.equals("4") ? "Original (4)" : value + " passes";
+            case "far_clamp": return value.equals("auto") ? "Game default" : value + " m";
             case "upscaler": return upscalerName(value);
             case "aa": return value.equals("fxaa") ? "Game (FXAA)" : value.equals("smaa") ? "SMAA" : "Off";
             case "overlay": return value.equals("fps") ? "FPS" : value.equals("full") ? "Full" : "Off";
