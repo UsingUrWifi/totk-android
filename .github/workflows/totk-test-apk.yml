@@ -1,0 +1,128 @@
+name: TotK Android isolated test APK
+
+on:
+  push:
+    branches:
+      - exp/totk-upstream-test-apk
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: totk-isolated-test-apk-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - name: Check out test branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify baseline ancestry and test-only package guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          git merge-base --is-ancestor 34210734b46ffc340ff61f1304f355bf32271bca HEAD
+          grep -F "if os.environ.get('TOTK_TEST_APK') == '1':" games/totk/android/build_release.py
+
+      - name: Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: .NET 10 for native shader translator
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Android SDK command-line tools
+        uses: android-actions/setup-android@v3
+
+      - name: Install host and pinned Android toolchains
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends git make cmake ninja-build pkg-config \
+            clang lld llvm rsync unzip zlib1g-dev libssl-dev libunwind-dev
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager --install 'platforms;android-35' 'build-tools;35.0.0' 'ndk;28.2.13676358'
+          test -f "$ANDROID_HOME/ndk/28.2.13676358/source.properties"
+          python -m pip install --upgrade pip
+          python -m pip install 'cryptography==50.0.2'
+          dotnet --version
+
+      - name: Run source tests before compilation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m unittest discover -s tests -v
+          python -m unittest discover -s tests/setup -t tests/setup -v
+          python tools/bench/check_baselines.py
+
+      - name: Fetch and verify the official pinned Turnip driver
+        shell: bash
+        run: |
+          set -euo pipefail
+          url='https://github.com/AurelioB/totk-android/releases/download/v1.0.1/TotK-Native-1.0.1.apk'
+          curl --fail --location --retry 3 --proto '=https' --tlsv1.2 \
+            "$url" --output "$RUNNER_TEMP/official-1.0.1.apk"
+          echo '5f590c91b3af683b26fea74c121890d7439d97b687ad4a34eff7660ca75399d5  '"$RUNNER_TEMP/official-1.0.1.apk" | sha256sum -c -
+          unzip -p "$RUNNER_TEMP/official-1.0.1.apk" \
+            'lib/arm64-v8a/libtotk_turnip.so' > "$RUNNER_TEMP/pinned-turnip.so"
+          echo '9b87afeb3d8d30c6a0ad5aab3e0703bc1500e0321e9f17a922106fa556389ec6  '"$RUNNER_TEMP/pinned-turnip.so" | sha256sum -c -
+
+      - name: Generate disposable test-signing certificate
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          openssl req -x509 -newkey rsa:3072 -nodes \
+            -keyout "$RUNNER_TEMP/key.pem" -out "$RUNNER_TEMP/cert.pem" \
+            -days 30 -subj '/CN=TotK isolated test APK'
+          cat "$RUNNER_TEMP/key.pem" "$RUNNER_TEMP/cert.pem" > "$RUNNER_TEMP/test-signing.pem"
+          rm -f "$RUNNER_TEMP/key.pem" "$RUNNER_TEMP/cert.pem"
+
+      - name: Build and audit separate-package APK
+        shell: bash
+        env:
+          TOTK_TEST_APK: '1'
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          python games/totk/android/build_release.py \
+            --ndk "$ANDROID_HOME/ndk/28.2.13676358" \
+            --android-sdk "$ANDROID_HOME" \
+            --turnip "$RUNNER_TEMP/pinned-turnip.so" \
+            --key "$RUNNER_TEMP/test-signing.pem" \
+            --version-code 10001 --version-name '1.0.1-test-3421073' \
+            --jobs 3 --work "$RUNNER_TEMP/totk-build" \
+            -o "$GITHUB_WORKSPACE/dist/TotK-Native-Test-3421073.apk"
+          python games/totk/android/build_release.py --audit dist/TotK-Native-Test-3421073.apk
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging \
+            dist/TotK-Native-Test-3421073.apk | tee dist/apk-badging.txt
+          grep -F "package: name='com.aure.totk.test'" dist/apk-badging.txt
+          (cd dist && sha256sum TotK-Native-Test-3421073.apk > TotK-Native-Test-3421073.apk.sha256)
+
+      - name: Upload test APK and checksum only
+        uses: actions/upload-artifact@v4
+        with:
+          name: TotK-Native-Test-3421073
+          path: |
+            dist/TotK-Native-Test-3421073.apk
+            dist/TotK-Native-Test-3421073.apk.sha256
+            dist/apk-badging.txt
+          if-no-files-found: error
+          retention-days: 7
