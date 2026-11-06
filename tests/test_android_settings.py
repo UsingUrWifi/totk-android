@@ -124,7 +124,11 @@ class SettingsTests(unittest.TestCase):
                 self.assertEqual(actual.count('TOTK_FRAME_RATE_HINT=60\n'), 1)
                 self.assertEqual(actual.replace('TOTK_FRAME_RATE_HINT=60\n', ''), before)
                 for soc in ('QCS8550', 'CQ7790S'):
-                    self.assertEqual(self.run_probe(f'envsocpreset {preset} {soc} en-GB')[0].replace('|', '\n'), before)
+                    actual_soc = self.run_probe(f'envsocpreset {preset} {soc} en-GB')[0].replace('|', '\n')
+                    # The refresh-rate preference is intentionally added on every device;
+                    # all other historical preset bytes must remain unchanged.
+                    self.assertEqual(actual_soc.count('TOTK_FRAME_RATE_HINT=60\n'), 1)
+                    self.assertEqual(actual_soc.replace('TOTK_FRAME_RATE_HINT=60\n', ''), before)
                 for feed in ('off', 'on'):
                     values = self.values(self.run_probe(f'apply {preset} gpu_feed={feed}')[0])
                     self.assertEqual(values['gpu_feed'], feed)
