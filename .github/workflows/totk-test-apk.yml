@@ -48,7 +48,7 @@ jobs:
           dotnet-version: '10.0.x'
 
       - name: Android SDK command-line tools
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
 
       - name: Install host and pinned Android toolchains
         shell: bash
