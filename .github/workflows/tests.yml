@@ -10,6 +10,8 @@ permissions:
 
 jobs:
   test:
+    # This job covers the legacy source tree, not the Android fork built on the experimental branch.
+    if: github.ref_name != 'exp/totk-lowram-custom-touch' && github.head_ref != 'exp/totk-lowram-custom-touch'
     runs-on: macos-latest
     timeout-minutes: 10
     steps:
@@ -40,3 +42,85 @@ jobs:
           cc -std=gnu11 -Wall -Wextra -Werror -D_GNU_SOURCE -DTOTK_GAME_V143=1 -Igames/totk/runtime -fsanitize=undefined -fno-sanitize-recover=all \
             games/totk/tests/companion/test_companion.c games/totk/runtime/companion_snapshot.c -o "$RUNNER_TEMP/test-companion" -lm
           "$RUNNER_TEMP/test-companion"
+
+  lowram-android:
+    if: github.ref_name == 'exp/totk-lowram-custom-touch' || github.head_ref == 'exp/totk-lowram-custom-touch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.14'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Install Linux host-test dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends build-essential clang llvm lld cmake ninja-build pkg-config libvulkan-dev mesa-vulkan-drivers glslang-tools spirv-tools libssl-dev zlib1g-dev unzip zip rsync lsof
+          mkdir -p "$RUNNER_TEMP/host-compiler"
+          ln -s "$(command -v clang)" "$RUNNER_TEMP/host-compiler/cc"
+          ln -s "$(command -v clang++)" "$RUNNER_TEMP/host-compiler/c++"
+          echo "$RUNNER_TEMP/host-compiler" >> "$GITHUB_PATH"
+          echo 'CC=clang' >> "$GITHUB_ENV"
+          echo 'CXX=clang++' >> "$GITHUB_ENV"
+      - name: Reconstruct exact APK sources and verify touch controls
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo 'c6a2ea6bd986cbee4ef3858618e3fcd826dbcb2a3b548295e3826a94f89a4708  totk_lowram_custom_touch_source.zip' | sha256sum -c -
+          unzip -q totk_lowram_custom_touch_source.zip -d "$RUNNER_TEMP/patch"
+          git clone https://github.com/GTomasel/totk-android-low-ram.git "$RUNNER_TEMP/lowram"
+          git -C "$RUNNER_TEMP/lowram" checkout --detach efe6e56711a8d4bfe56b041ec5ac2060c127b531
+          git clone https://github.com/UsingUrWifi/totk-android.git "$RUNNER_TEMP/old-touch"
+          git -C "$RUNNER_TEMP/old-touch" checkout --detach 1a94b537ed5c3060793b8f998e3dc1c036a040d8
+          cd "$RUNNER_TEMP/patch/totk_touch_patch"
+          mkdir -p test-classes
+          javac -d test-classes TouchBindings.java TouchBindingsProbe.java
+          java -cp test-classes com.aure.totk.TouchBindingsProbe
+          python3 apply.py "$RUNNER_TEMP/lowram" "$RUNNER_TEMP/old-touch" --check
+          python3 apply.py "$RUNNER_TEMP/lowram" "$RUNNER_TEMP/old-touch"
+          python3 "$GITHUB_WORKSPACE/tools/lowram_framegen_v2.py" "$RUNNER_TEMP/lowram"
+          git -C "$RUNNER_TEMP/lowram" diff --check
+      - name: Install pinned source test requirements
+        run: python -m pip install -r "$RUNNER_TEMP/lowram/games/totk/requirements.txt"
+      - name: Run complete source regression suite on Linux
+        id: suite
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/lowram"
+          python -m unittest discover -s tests -v 2>&1 | tee "$RUNNER_TEMP/lowram-regressions.log"
+      - name: Check native path parser with UBSan
+        if: ${{ !cancelled() && (steps.suite.outcome == 'success' || steps.suite.outcome == 'failure') }}
+        shell: bash
+        run: |
+          cd "$RUNNER_TEMP/lowram"
+          clang -std=c11 -Wall -Wextra -Werror -fsanitize=undefined -fno-sanitize-recover=all tests/test_romfs_paths.c -o "$RUNNER_TEMP/test-romfs-paths"
+          "$RUNNER_TEMP/test-romfs-paths"
+      - name: Check controller map with UBSan
+        if: ${{ !cancelled() && (steps.suite.outcome == 'success' || steps.suite.outcome == 'failure') }}
+        shell: bash
+        run: |
+          cd "$RUNNER_TEMP/lowram"
+          clang -std=c11 -Wall -Wextra -Werror -fsanitize=undefined -fno-sanitize-recover=all tests/test_controller_map.c -o "$RUNNER_TEMP/test-controller-map"
+          "$RUNNER_TEMP/test-controller-map"
+      - name: Check Android companion game-state reader with UBSan
+        if: ${{ !cancelled() && (steps.suite.outcome == 'success' || steps.suite.outcome == 'failure') }}
+        shell: bash
+        run: |
+          cd "$RUNNER_TEMP/lowram"
+          clang -std=gnu11 -Wall -Wextra -Werror -D_GNU_SOURCE -DTOTK_GAME_V143=1 -Igames/totk/runtime -fsanitize=undefined -fno-sanitize-recover=all games/totk/tests/companion/test_companion.c games/totk/runtime/companion_snapshot.c -o "$RUNNER_TEMP/test-companion" -lm
+          "$RUNNER_TEMP/test-companion"
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() && (steps.suite.outcome == 'success' || steps.suite.outcome == 'failure') }}
+        with:
+          name: lowram-source-regression-log
+          path: ${{ runner.temp }}/lowram-regressions.log
+          retention-days: 3
