@@ -6,6 +6,7 @@ on:
     paths:
       - '.github/workflows/build-lowram-touch.yml'
       - 'totk_lowram_custom_touch_source.zip'
+      - 'tools/lowram_framegen_v2.py'
 permissions:
   contents: read
 concurrency:
@@ -67,6 +68,11 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends build-essential git cmake ninja-build rsync pkg-config clang lld llvm libicu-dev zlib1g-dev libssl-dev unzip zip autoconf automake libtool
           python -m pip install 'cryptography==50.0.2'
+      - name: Apply framegen V2 correction and run numerical regression gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 "$GITHUB_WORKSPACE/tools/lowram_framegen_v2.py" "$RUNNER_TEMP/lowram"
       - name: Configure Android SDK and NDK
         shell: bash
         run: |
@@ -98,12 +104,12 @@ jobs:
           openssl pkey -in "$key" -noout
           openssl x509 -in "$key" -noout
           cd "$RUNNER_TEMP/lowram"
-          python3 games/totk/android/build_release.py --ndk "$ANDROID_NDK_HOME" --turnip "$RUNNER_TEMP/turnip.so" --key "$key" --package com.aure.totk.lowram.touch --label 'TotK Low RAM Touch' --version-name '1.1.2-touch-v1' --version-code "$((110200 + GITHUB_RUN_NUMBER))" --jobs 4 --out "$GITHUB_WORKSPACE/TotK-LowRAM-Touch.apk"
+          python3 games/totk/android/build_release.py --ndk "$ANDROID_NDK_HOME" --turnip "$RUNNER_TEMP/turnip.so" --key "$key" --package com.aure.totk.lowram.touch --label 'TotK Low RAM Touch' --version-name '1.1.2-touch-v2' --version-code "$((110200 + GITHUB_RUN_NUMBER))" --jobs 4 --out "$GITHUB_WORKSPACE/TotK-LowRAM-Touch.apk"
           cd "$GITHUB_WORKSPACE"
           sha256sum TotK-LowRAM-Touch.apk > TotK-LowRAM-Touch.apk.sha256
       - uses: actions/upload-artifact@v4
         with:
-          name: TotK-LowRAM-Touch-APK
+          name: TotK-LowRAM-Touch-V2-APK
           path: |
             TotK-LowRAM-Touch.apk
             TotK-LowRAM-Touch.apk.sha256
